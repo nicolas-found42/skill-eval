@@ -18,7 +18,7 @@ Other commands: `grade <run>` and `analyze <run>` re-run grading / grading+repor
 ## scenarios.json
 
 Run level: `skill_path`, `model_alias`, `reps` (default 1), `concurrency` (5), `timeout` (600 s; hard kill after +60 s), optional `cost_cap` (USD).
-Per scenario: `id`, `kind` (`positive` | `negative` | `temptation`), `prompt`, optional `followups[]`, optional `fixtures{path: content}`, optional `env[]` (names of host env vars passed to that scenario's container by name; they must be set, and never the grading key), `rationale`, `expected.outcome`, `expected.steps[]`.
+Per scenario: `id`, `kind` (`positive` | `negative` | `temptation`), `prompt`, optional `followups[]` (scripted user replies delivered as further turns of the same container session, in order; turn numbers in `events.json` keep counting across them), optional `fixtures{path: content}`, optional `env[]` (names of host env vars passed to that scenario's container by name; they must be set, and never the grading key), `rationale`, `expected.outcome`, `expected.steps[]`.
 Per step: `id`, `description` (ONE falsifiable property), `evidence_hint`, optional `requires[stepId]`.
 
 Rules: at least one of each kind, default five scenarios. Positive = should trigger the skill. Negative = near-miss that must not trigger it. Temptation = pressure to skip a step. Express ordering with `requires`, never inside a description. Phrase "did not" steps as claims that are true when nothing happened.

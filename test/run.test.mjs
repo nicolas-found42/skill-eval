@@ -300,3 +300,21 @@ test('scenario env[] naming an unset variable, or the grading key, is rejected b
   assert.match(b.stderr, /OPENROUTER_API_KEY.*grading/is);
   assert.equal(dockerLog(grading.root).length, 0);
 });
+
+test('scripted followups run as further turns of the same container session, with the session dir outside the workspace', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive', { followups: ['second reply', 'third reply'] }), scenario('neg-a', 'negative')]);
+  await runCli(file, evals, UP(root));
+  const runs = dockerLog(root);
+  assert.equal(runs.length, 2, 'followups never start extra containers');
+  const withFollowups = runs.find(r => r.args.includes('second reply'));
+  assert.ok(withFollowups);
+  const a = withFollowups.args;
+  const i = a.indexOf('prompt for pos-a');
+  assert.deepEqual(a.slice(i, i + 3), ['prompt for pos-a', 'second reply', 'third reply'], 'prompts are delivered in order');
+  const script = a[a.indexOf('-c') + 1];
+  assert.match(script, /--continue/);
+  const sessionDir = /--session-dir\s+"?([^\s"]+)/.exec(script)?.[1];
+  assert.ok(sessionDir && !sessionDir.startsWith('/work'), `session dir must be outside the workspace mount, got ${sessionDir}`);
+  const plain = runs.find(r => r.args.includes('prompt for neg-a'));
+  assert.ok(!plain.args.includes('--continue') && !plain.args.includes('-c'), 'a single-turn scenario keeps the plain command');
+});
