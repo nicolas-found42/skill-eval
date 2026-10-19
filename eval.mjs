@@ -24,6 +24,18 @@ function parseArgs(argv) {
   return { pos, flags };
 }
 
+/**
+ * The evidence cap every grader command shares: how many characters of transcript, skill text and workspace
+ * the judge may see. Unset means the default; a value that is not a positive number is a usage error, not a NaN.
+ */
+function evidenceCap(flags) {
+  const raw = flags['evidence-cap'];
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) throw new UserError('--evidence-cap must be a positive number of characters');
+  return n;
+}
+
 const COMMANDS = {
   async doctor({ flags }) { await doctor({ modelAlias: flags.model }); },
   async normalize({ pos, flags }) {
@@ -39,9 +51,9 @@ const COMMANDS = {
       process.stdout.write(`  description match ${m.p.toFixed(2)}  ${m.scenario} [${m.kind}]${flag}\n`);
     }
   },
-  async analyze({ pos }) {
-    if (!pos[0]) throw new UserError('usage: eval.mjs analyze <run-folder>');
-    const doc = await analyzeRun(pos[0]);
+  async analyze({ pos, flags }) {
+    if (!pos[0]) throw new UserError('usage: eval.mjs analyze <run-folder> [--evidence-cap <chars>]');
+    const doc = await analyzeRun(pos[0], { evidenceCap: evidenceCap(flags) });
     process.stdout.write(`analyzed ${doc.sessions.length} session(s): ${doc.findings.filter(f => f.severity === 'high').length} failing finding(s); see summary.md\n`);
   },
   async compare({ pos }) {
@@ -55,16 +67,16 @@ const COMMANDS = {
   },
   async grade({ pos, flags }) {
     if (!pos[0]) throw new UserError('usage: eval.mjs grade <run-folder> [--evidence-cap <chars>]');
-    const cap = typeof flags['evidence-cap'] === 'string' ? Number(flags['evidence-cap']) : undefined;
+    const cap = evidenceCap(flags);
     const res = await gradeRun(pos[0], { evidenceCap: cap });
     process.stdout.write(`graded ${res.length} session(s)\n`);
   },
   async run({ pos, flags }) {
-    if (!pos[0]) throw new UserError('usage: eval.mjs run <scenarios.json> [--evals-dir <dir>] [--skip-grading]');
+    if (!pos[0]) throw new UserError('usage: eval.mjs run <scenarios.json> [--evals-dir <dir>] [--skip-grading] [--evidence-cap <chars>]');
     const runDir = await runAll(pos[0], { evalsDir: typeof flags['evals-dir'] === 'string' ? flags['evals-dir'] : path.join(ROOT, 'evals') });
     process.stdout.write(`run folder: ${runDir}\n`);
     if (flags['skip-grading'] === true) return;
-    const doc = await analyzeRun(runDir);
+    const doc = await analyzeRun(runDir, { evidenceCap: evidenceCap(flags) });
     process.stdout.write(`analyzed ${doc.sessions.length} session(s): ${doc.findings.filter(f => f.severity === 'high').length} failing finding(s); read ${path.join(runDir, 'summary.md')}\n`);
   },
 };

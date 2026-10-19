@@ -172,3 +172,19 @@ test('analyze fails clearly without the grading key and writes no findings', asy
   assert.ok(!fs.existsSync(path.join(run, 'findings.json')));
   assert.ok(!fs.existsSync(path.join(run, 'summary.md')));
 });
+
+test('analyze --evidence-cap bounds what the judge sees: an over-cap transcript is truncated and no step auto-passes', async () => {
+  const run = runFrom(['intact']);
+  const r = await cli(['analyze', run, '--evidence-cap', '1'], { env: ENV });
+  assert.equal(r.code, 0, r.stderr);
+  const g = readJson(path.join(run, 'intact', 'grading.json'));
+  assert.equal(g.truncated, true);
+  assert.ok(g.steps.every(s => s.verdict !== 'done'), 'truncated evidence never auto-passes a step');
+});
+
+test('analyze refuses an evidence cap that is not a positive number', async () => {
+  const run = runFrom(['intact']);
+  const r = await cli(['analyze', run, '--evidence-cap', 'abc'], { env: ENV });
+  assert.equal(r.code, 1);
+  assert.match(r.stderr, /evidence-cap/);
+});
