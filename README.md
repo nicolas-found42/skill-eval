@@ -90,31 +90,31 @@ node eval.mjs compare evals/<before-run> evals/<after-run>
 
 ```mermaid
 flowchart TB
-  subgraph prep["① Prepare — on the host"]
+  subgraph prep["① Write the test questions"]
     direction LR
-    skill["SKILL.md"] --> val["validate<br/>structure checks + Jev lint"]
-    scen["scenarios.json"] --> val
-    val --> lock[("scenarios.json.lock.json<br/>frozen hash")]
+    skill["your skill"] --> val["check the questions"]
+    scen["the question list"] --> val
+    val --> lock[("lock the questions<br/>(a fingerprint)")]
   end
 
-  subgraph run["② Run — one container per scenario, in parallel"]
+  subgraph run["② Run the skill"]
     direction LR
-    pre["preflight → doctor<br/>keys, Docker, image"] --> ctr{{"container<br/>omp -p --mode json<br/>workspace rw · skill ro"}} --> tr[("transcript.jsonl")] --> norm["normalize<br/>events.json + result.json"]
+    pre["check the machine"] --> ctr{{"a clean copy of the machine<br/>(one for each question)"}} --> tr[("the answer log")] --> norm["read the log"]
   end
 
-  subgraph judge["③ Judge — on the host, TypeSafe Jev (pinned)"]
+  subgraph judge["③ The judge reads the log"]
     direction LR
-    grade["grade<br/>one question per step"] --> classify["classify<br/>failure-mode labels"] --> merge["merge findings<br/>across scenarios"]
+    grade["ask about each step"] --> classify["name the mistakes"] --> merge["join the same mistakes"]
   end
 
-  subgraph result["④ Result"]
+  subgraph result["④ The report"]
     direction LR
-    files[("findings.json · summary.md<br/>analysis.md · run.json")]
+    files[("summary.md · findings.json<br/>analysis.md · run.json")]
   end
 
-  subgraph again["⑤ Then — fix and re-run"]
+  subgraph again["⑤ Fix the skill and run again"]
     direction LR
-    fix["fix the skill"] --> rerun["re-run the same<br/>frozen scenarios"] --> cmp["compare before / after<br/>fixed · still failing · new · regressed"]
+    fix["fix the skill"] --> rerun["run the same<br/>questions again"] --> cmp["what changed?<br/>fixed · still failing · new · regressed"]
   end
 
   lock --> pre
@@ -124,15 +124,16 @@ flowchart TB
 ```
 
 
-Read it as five bands, top to bottom:
 
-1. **Prepare** — `validate` checks the scenarios and freezes them by hash. The lock is what makes two runs comparable, and what stops you from editing the scenarios between them.
-2. **Run** — every scenario (× `reps`) gets its own container, up to `concurrency` at a time. Each container writes one session folder: the raw transcript, then the normalized `events.json` and `result.json`.
-3. **Judge** — the host asks the pinned Jev model about every step of every session, then classifies the session and merges findings that share a cause. The container never sees the grading key, so the skill under test cannot argue with its own judge.
-4. **Result** — `summary.md` for a human, `findings.json` for an agent, `analysis.md` per session, `run.json` for the metadata and the costs.
-5. **Then** (the dashed edge) — fix the skill, re-run the **same** frozen scenarios, and `compare` tells you what moved: fixed, still failing, new, regressed.
+The picture has five steps. Read it from the top.
 
-That last band is the point of the tool: the loop is one edit of `SKILL.md` and one more run.
+1. **Write the test questions.** You write the questions in `scenarios.json`. The `validate` command is a **gate**: it checks each question and then locks the file with a fingerprint. The lock makes two runs comparable. It also stops you from changing the questions in between.
+2. **Run the skill.** Each question runs in a clean copy of the machine. The tool calls this copy a **container**. The tool saves the **answer log**. It then reads the log into `events.json` and `result.json`.
+3. **The judge reads the log.** The judge is a model (TypeSafe Jev). It answers one question for each step of the skill. The table of verdicts is the **grader matrix**. A verdict that is neither pass nor fail is an **amber cell**: a person must read it. The container has no grading key. The skill under test cannot argue with its own judge.
+4. **The report.** `summary.md` is for a person. `findings.json` is for an agent. `analysis.md` is for one session. `run.json` has the details and the cost.
+5. **Fix the skill and run again.** Change the skill. Run the same questions again. The `compare` command tells you what changed: fixed, still failing, new, regressed.
+
+Step 5 is the point of the tool. The loop is one change to `SKILL.md` and one more run.
 
 **One scenario, one container.** The container gets:
 
