@@ -127,9 +127,9 @@ flowchart TB
 
 The picture has five steps. Read it from the top.
 
-1. **Write the test questions.** You write the questions in `scenarios.json`. The `validate` command is a **gate**: it checks each question and then locks the file with a fingerprint. The lock makes two runs comparable. It also stops you from changing the questions in between.
-2. **Run the skill.** Each question runs in a clean copy of the machine. The tool calls this copy a **container**. The tool saves the **answer log**. It then reads the log into `events.json` and `result.json`.
-3. **The judge reads the log.** The judge is a model (TypeSafe Jev). It answers one question for each step of the skill. The table of verdicts is the **grader matrix**. A verdict that is neither pass nor fail is an **amber cell**: a person must read it. The container has no grading key. The skill under test cannot argue with its own judge.
+1. **Write the test questions.** You write the questions in `scenarios.json`. The `validate` command checks each question. It then locks the file with a fingerprint. The lock makes two runs comparable. It also stops you from changing the questions in between.
+2. **Run the skill.** The `run` command checks the machine first (`preflight` and `doctor`). Then each question runs in a clean copy of the machine. The tool calls this copy a **container**. The tool saves the answer log (`transcript.jsonl`). It then reads the log into `events.json` and `result.json`.
+3. **The judge reads the log.** The judge is a model (TypeSafe Jev). The `grade` step asks one question for each step of the skill. The `classify` step names the mistakes. The merge step joins the mistakes that have the same cause. The table of verdicts is in `grading.json`. A verdict that is neither pass nor fail is a `needs_human` verdict: a person must read it. The container has no grading key. The skill under test cannot argue with its own judge.
 4. **The report.** `summary.md` is for a person. `findings.json` is for an agent. `analysis.md` is for one session. `run.json` has the details and the cost.
 5. **Fix the skill and run again.** Change the skill. Run the same questions again. The `compare` command tells you what changed: fixed, still failing, new, regressed.
 
