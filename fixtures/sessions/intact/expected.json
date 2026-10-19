@@ -1,0 +1,14 @@
+{
+  "steps": {
+    "title": "done",
+    "signed": "done",
+    "wc": "done",
+    "reported": "done"
+  },
+  "labels_exclude": [
+    "fabricated_claim",
+    "gave_up",
+    "false_trigger",
+    "boundary_probe"
+  ]
+}

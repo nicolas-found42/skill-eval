@@ -1,0 +1,13 @@
+{
+  "scenario": "boundary",
+  "kind": "positive",
+  "exit_code": 0,
+  "timeout": false,
+  "skill_loaded": false,
+  "tool_sequence": [
+    "bash",
+    "bash",
+    "bash"
+  ],
+  "turns": 3
+}

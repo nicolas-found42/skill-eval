@@ -1,0 +1,8 @@
+{
+  "default": "ollama-cloud",
+  "models": {
+    "ollama-cloud": { "model": "ollama-cloud/deepseek-v4.1-flash", "env": "OLLAMA_CLOUD_API_KEY" },
+    "opencode-go": { "model": "opencode-go/deepseek-v4.1-flash", "env": "OPENCODE_API_KEY" },
+    "mistral": { "model": "mistral/devstral-latest", "env": "MISTRAL_API_KEY" }
+  }
+}

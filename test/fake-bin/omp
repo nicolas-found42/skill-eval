@@ -1,0 +1,4 @@
+#!/usr/bin/env node
+const cfg = JSON.parse(process.env.FAKE_DOCKER_CONFIG || '{}');
+if (process.argv[2] === '--version') { process.stdout.write(`omp/${cfg.ompVersion || '0.0.0'}\n`); process.exit(0); }
+process.stderr.write('fake omp: unsupported\n'); process.exit(2);

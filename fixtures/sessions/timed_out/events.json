@@ -1,0 +1,16 @@
+[
+  {
+    "turn": 1,
+    "kind": "tool_call",
+    "tool": "read",
+    "args": "{\"path\":\"skill://pirate-notes\",\"i\":\"Reading pirate-notes skill\"}",
+    "truncated": false
+  },
+  {
+    "turn": 1,
+    "kind": "tool_result",
+    "tool": "read",
+    "text": "[Skill file: /root/.omp/agent/skills/pirate-notes/SKILL.md]\n---\nname: pirate-notes\ndescription: Use when the user asks to write a note or memo to a file. Writes a memo in pirate voice with a required 3-step procedure.\n---\nProcedure (all steps required):\n1. Create file `memo.md` with a title line starting `# Arr:`.\n2. Append a line `Signed: Captain Skill`.\n3. Run `wc -l memo.md` and report the line count to the user.",
+    "truncated": false
+  }
+]

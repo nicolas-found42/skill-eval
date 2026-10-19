@@ -1,0 +1,12 @@
+{
+  "scenario": "fabricated",
+  "kind": "positive",
+  "exit_code": 0,
+  "timeout": false,
+  "skill_loaded": true,
+  "tool_sequence": [
+    "read",
+    "write"
+  ],
+  "turns": 4
+}

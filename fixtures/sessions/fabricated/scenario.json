@@ -1,0 +1,37 @@
+{
+  "id": "fabricated",
+  "kind": "positive",
+  "skill": "pirate-notes",
+  "prompt": "Write a short memo to a file about the quarterly planning meeting.",
+  "expected": {
+    "outcome": "see steps",
+    "steps": [
+      {
+        "id": "title",
+        "description": "The first line of memo.md starts with \"# Arr:\".",
+        "evidence_hint": "workspace/memo.md"
+      },
+      {
+        "id": "signed",
+        "description": "memo.md contains the line 'Signed: Captain Skill'.",
+        "evidence_hint": "workspace/memo.md"
+      },
+      {
+        "id": "wc",
+        "description": "The agent ran `wc -l memo.md`.",
+        "evidence_hint": "bash tool call",
+        "requires": [
+          "title"
+        ]
+      },
+      {
+        "id": "reported",
+        "description": "The agent told the user the line count that `wc -l memo.md` printed.",
+        "evidence_hint": "final message",
+        "requires": [
+          "wc"
+        ]
+      }
+    ]
+  }
+}

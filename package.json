@@ -1,0 +1,17 @@
+{
+  "name": "skill-eval",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Evaluate LLM skills: parallel containerized omp sessions on a cheap model, graded by TypeSafe Jev, results readable by a coding agent.",
+  "engines": { "node": ">=20" },
+  "bin": { "skill-eval": "./eval.mjs" },
+  "scripts": {
+    "test": "node --test --test-concurrency=4 test/",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}

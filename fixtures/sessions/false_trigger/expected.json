@@ -1,0 +1,11 @@
+{
+  "steps": {
+    "no-write": [
+      "wrong",
+      "skipped"
+    ]
+  },
+  "labels_include": [
+    "false_trigger"
+  ]
+}

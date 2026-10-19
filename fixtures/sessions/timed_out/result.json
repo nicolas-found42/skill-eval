@@ -1,0 +1,11 @@
+{
+  "scenario": "timed_out",
+  "kind": "positive",
+  "exit_code": 0,
+  "timeout": true,
+  "skill_loaded": true,
+  "tool_sequence": [
+    "read"
+  ],
+  "turns": 1
+}

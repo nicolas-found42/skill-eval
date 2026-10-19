@@ -1,0 +1,9 @@
+{
+  "scenario": "not_triggered",
+  "kind": "positive",
+  "exit_code": 0,
+  "timeout": false,
+  "skill_loaded": false,
+  "tool_sequence": [],
+  "turns": 1
+}

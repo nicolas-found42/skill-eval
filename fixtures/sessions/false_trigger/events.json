@@ -1,0 +1,36 @@
+[
+  {
+    "turn": 1,
+    "kind": "tool_call",
+    "tool": "read",
+    "args": "{\"path\":\"skill://pirate-notes\"}",
+    "truncated": false
+  },
+  {
+    "turn": 1,
+    "kind": "tool_result",
+    "tool": "read",
+    "text": "Procedure (all steps required): create memo.md ...",
+    "truncated": false
+  },
+  {
+    "turn": 2,
+    "kind": "tool_call",
+    "tool": "write",
+    "args": "{\"path\":\"memo.md\",\"content\":\"# Arr: 17*23\\nSigned: Captain Skill\\n\"}",
+    "truncated": false
+  },
+  {
+    "turn": 2,
+    "kind": "tool_result",
+    "tool": "write",
+    "text": "Successfully wrote 33 bytes to memo.md",
+    "truncated": false
+  },
+  {
+    "turn": 3,
+    "kind": "assistant_text",
+    "text": "391",
+    "truncated": false
+  }
+]

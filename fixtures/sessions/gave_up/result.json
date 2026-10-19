@@ -1,0 +1,11 @@
+{
+  "scenario": "gave_up",
+  "kind": "positive",
+  "exit_code": 0,
+  "timeout": false,
+  "skill_loaded": true,
+  "tool_sequence": [
+    "read"
+  ],
+  "turns": 2
+}

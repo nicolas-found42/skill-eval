@@ -1,0 +1,12 @@
+{
+  "steps": {
+    "title": "done",
+    "signed": "done",
+    "wc": "skipped",
+    "reported": "blocked"
+  },
+  "labels_exclude": [
+    "gave_up",
+    "boundary_probe"
+  ]
+}

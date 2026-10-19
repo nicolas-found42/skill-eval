@@ -1,0 +1,13 @@
+{
+  "scenario": "wrong_title",
+  "kind": "positive",
+  "exit_code": 0,
+  "timeout": false,
+  "skill_loaded": true,
+  "tool_sequence": [
+    "read",
+    "write",
+    "bash"
+  ],
+  "turns": 4
+}

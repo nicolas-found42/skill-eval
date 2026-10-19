@@ -1,0 +1,4 @@
+node_modules/
+evals/*
+!evals/.gitkeep
+.DS_Store

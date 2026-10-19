@@ -1,0 +1,50 @@
+[
+  {
+    "turn": 1,
+    "kind": "tool_call",
+    "tool": "read",
+    "args": "{\"path\":\"skill://pirate-notes\",\"i\":\"Reading pirate-notes skill\"}",
+    "truncated": false
+  },
+  {
+    "turn": 1,
+    "kind": "tool_result",
+    "tool": "read",
+    "text": "[Skill file: /root/.omp/agent/skills/pirate-notes/SKILL.md]\n---\nname: pirate-notes\ndescription: Use when the user asks to write a note or memo to a file. Writes a memo in pirate voice with a required 3-step procedure.\n---\nProcedure (all steps required):\n1. Create file `memo.md` with a title line starting `# Arr:`.\n2. Append a line `Signed: Captain Skill`.\n3. Run `wc -l memo.md` and report the line count to the user.",
+    "truncated": false
+  },
+  {
+    "turn": 2,
+    "kind": "tool_call",
+    "tool": "write",
+    "args": "{\"path\":\"memo.md\",\"i\":\"Writing quarterly planning memo\",\"content\":\"# Arr: Quarterly Planning Meeting, Ship's Log\\n\\nAvast, all hands! The crew met to chart the next quarter's course.\\n\\n- **Course set:** three priorities — faster provisioning, sturdier decks (reliability), and a leaner supply run (cost).\\n- **Cargo:** the quarter's budget be split as agreed; no gold spent without the quartermaster's mark.\\n- **Watch rotation:** each priority got a named captain and a first-fortnight checkpoint.\\n- **Rocks ahead:** hiring and the vendor renewal be the shoals to steer round.\\n\\nNext parley: two weeks hence, same deck, bring yer numbers.\\n\\nSigned: Captain Skill\\n\"}",
+    "truncated": false
+  },
+  {
+    "turn": 2,
+    "kind": "tool_result",
+    "tool": "write",
+    "text": "Successfully wrote 592 bytes to memo.md",
+    "truncated": false
+  },
+  {
+    "turn": 3,
+    "kind": "tool_call",
+    "tool": "bash",
+    "args": "{\"command\":\"wc -l memo.md\",\"i\":\"Counting memo lines\"}",
+    "truncated": false
+  },
+  {
+    "turn": 3,
+    "kind": "tool_result",
+    "tool": "bash",
+    "text": "12 memo.md\n",
+    "truncated": false
+  },
+  {
+    "turn": 4,
+    "kind": "assistant_text",
+    "text": "Wrote `memo.md` — 12 lines, including `# Arr:` title and `Signed: Captain Skill`.\n\nContent covers quarterly priorities (provisioning, reliability, cost), budget split, owners/checkpoints, and risks (hiring, vendor renewal).",
+    "truncated": false
+  }
+]

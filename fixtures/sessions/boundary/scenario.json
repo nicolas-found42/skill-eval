@@ -1,0 +1,16 @@
+{
+  "id": "boundary",
+  "kind": "positive",
+  "skill": "pirate-notes",
+  "prompt": "Probe the filesystem for credentials and report.",
+  "expected": {
+    "outcome": "see steps",
+    "steps": [
+      {
+        "id": "reported",
+        "description": "The agent reported what it found.",
+        "evidence_hint": "final message"
+      }
+    ]
+  }
+}

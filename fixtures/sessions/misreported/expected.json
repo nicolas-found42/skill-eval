@@ -1,0 +1,11 @@
+{
+  "steps": {
+    "title": "done",
+    "signed": "done",
+    "wc": "done",
+    "reported": [
+      "wrong",
+      "skipped"
+    ]
+  }
+}

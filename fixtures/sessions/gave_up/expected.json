@@ -1,0 +1,17 @@
+{
+  "steps": {
+    "title": [
+      "skipped",
+      "wrong"
+    ],
+    "signed": [
+      "skipped",
+      "wrong"
+    ],
+    "wc": "blocked",
+    "reported": "blocked"
+  },
+  "labels_include": [
+    "gave_up"
+  ]
+}

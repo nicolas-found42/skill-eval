@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+// Test double for the docker CLI. Behaviour is driven by FAKE_DOCKER_CONFIG (JSON):
+//  daemon: 'up'|'down'  images: [tags]  logDir: dir to append invocations to (docker.log, JSON per line)
+//  run: { transcript: path to canned JSONL, stderr, exit, sleepMs, files: {relpath: content} written into the /work mount }
+import fs from 'node:fs';
+import path from 'node:path';
+const cfg = JSON.parse(process.env.FAKE_DOCKER_CONFIG || '{}');
+const args = process.argv.slice(2);
+const log = o => { if (cfg.logDir) fs.appendFileSync(path.join(cfg.logDir, 'docker.log'), JSON.stringify(o) + '\n'); };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cmd = args[0];
+
+if (cmd !== 'info' && cfg.daemon === 'down') {
+  process.stderr.write('Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?\n');
+  process.exit(1);
+}
+if (cmd === 'info') {
+  if (cfg.daemon === 'down') { process.stderr.write('Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?\n'); process.exit(1); }
+  process.stdout.write('29.0.0\n'); process.exit(0);
+}
+if (cmd === 'image' && args[1] === 'inspect') {
+  const tag = args[2];
+  if ((cfg.images || []).includes(tag)) { process.stdout.write('[{}]\n'); process.exit(0); }
+  process.stderr.write(`Error: No such image: ${tag}\n`); process.exit(1);
+}
+if (cmd === 'build') { log({ cmd: 'build', args }); process.stdout.write('built\n'); process.exit(0); }
+if (cmd === 'kill' || cmd === 'rm') { log({ cmd, args }); process.exit(0); }
+if (cmd === 'run') {
+  log({ cmd: 'run', args, cwd: process.cwd() });
+  const r = cfg.run || {};
+  const wi = args.indexOf('-v');
+  // find the /work mount: "-v <host>:/work"
+  const mounts = []; for (let i = 0; i < args.length; i++) if (args[i] === '-v') mounts.push(args[i + 1]);
+  const work = mounts.map(m => m.split(':')).find(p => p[1] === '/work');
+  if (work && r.files) for (const [rel, content] of Object.entries(r.files)) {
+    const f = path.join(work[0], rel); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, content);
+  }
+  if (r.transcript) process.stdout.write(fs.readFileSync(r.transcript, 'utf8'));
+  if (r.stderr) process.stderr.write(r.stderr);
+  if (r.sleepMs) {
+    // act like a hung container: exit only when killed
+    process.on('SIGTERM', () => process.exit(143));
+    await sleep(r.sleepMs);
+  }
+  process.exit(r.exit ?? 0);
+}
+process.stderr.write(`fake docker: unsupported command ${args.join(' ')}\n`);
+process.exit(2);

@@ -1,0 +1,16 @@
+{
+  "id": "false_trigger",
+  "kind": "negative",
+  "skill": "pirate-notes",
+  "prompt": "What is 17 * 23? Just answer, no files.",
+  "expected": {
+    "outcome": "see steps",
+    "steps": [
+      {
+        "id": "no-write",
+        "description": "The agent did not create any file.",
+        "evidence_hint": "workspace"
+      }
+    ]
+  }
+}
