@@ -89,23 +89,50 @@ node eval.mjs compare evals/<before-run> evals/<after-run>
 ## How it works
 
 ```mermaid
-flowchart TD
-    A[SKILL.md + scenarios.json] --> B[validate]
-    B -->|Jev lint| C[scenarios.json.lock.json<br/>frozen hash]
-    C --> D[run]
-    D --> E[preflight<br/>no grading key, no escaping fixtures]
-    E --> F[doctor: Docker, keys, image]
-    F --> G["pool: concurrency 5<br/>one container per scenario x rep"]
-    G --> H["docker run --rm<br/>workspace rw, skill ro"]
-    H --> I[omp -p --mode json --no-session]
-    I --> J[transcript.jsonl]
-    J --> K[normalize: events.json + result.json]
-    K --> L[grade: one Jev question per step]
-    L --> M[classify: failure-mode labels]
-    M --> N[merge findings across scenarios]
-    N --> O[findings.json + summary.md + analysis.md]
-    O --> P[compare: fixed / still failing / new / regressed]
+flowchart TB
+  subgraph prep["① Prepare — on the host"]
+    direction LR
+    skill["SKILL.md"] --> val["validate<br/>structure checks + Jev lint"]
+    scen["scenarios.json"] --> val
+    val --> lock[("scenarios.json.lock.json<br/>frozen hash")]
+  end
+
+  subgraph run["② Run — one container per scenario, in parallel"]
+    direction LR
+    pre["preflight → doctor<br/>keys, Docker, image"] --> ctr{{"container<br/>omp -p --mode json<br/>workspace rw · skill ro"}} --> tr[("transcript.jsonl")] --> norm["normalize<br/>events.json + result.json"]
+  end
+
+  subgraph judge["③ Judge — on the host, TypeSafe Jev (pinned)"]
+    direction LR
+    grade["grade<br/>one question per step"] --> classify["classify<br/>failure-mode labels"] --> merge["merge findings<br/>across scenarios"]
+  end
+
+  subgraph result["④ Result"]
+    direction LR
+    files[("findings.json · summary.md<br/>analysis.md · run.json")]
+  end
+
+  subgraph again["⑤ Then — fix and re-run"]
+    direction LR
+    fix["fix the skill"] --> rerun["re-run the same<br/>frozen scenarios"] --> cmp["compare before / after<br/>fixed · still failing · new · regressed"]
+  end
+
+  lock --> pre
+  norm --> grade
+  merge --> files
+  files -.-> fix
 ```
+
+
+Read it as five bands, top to bottom:
+
+1. **Prepare** — `validate` checks the scenarios and freezes them by hash. The lock is what makes two runs comparable, and what stops you from editing the scenarios between them.
+2. **Run** — every scenario (× `reps`) gets its own container, up to `concurrency` at a time. Each container writes one session folder: the raw transcript, then the normalized `events.json` and `result.json`.
+3. **Judge** — the host asks the pinned Jev model about every step of every session, then classifies the session and merges findings that share a cause. The container never sees the grading key, so the skill under test cannot argue with its own judge.
+4. **Result** — `summary.md` for a human, `findings.json` for an agent, `analysis.md` per session, `run.json` for the metadata and the costs.
+5. **Then** (the dashed edge) — fix the skill, re-run the **same** frozen scenarios, and `compare` tells you what moved: fixed, still failing, new, regressed.
+
+That last band is the point of the tool: the loop is one edit of `SKILL.md` and one more run.
 
 **One scenario, one container.** The container gets:
 
