@@ -1,0 +1,42 @@
+{
+  "voice": "af_heart",
+  "say_voice": "Samantha",
+  "speed": 1.0,
+  "scenes": [
+    {
+      "scene": "intro",
+      "text": "This is the wait what skill. Four lines of instruction. It fires when a message does not land, and it tells the agent to say that message again in plain words. Today I evaluate it live, with the machine I built: situations in sealed boxes, a judge that marks every expected step, and receipts that point at the exact words.",
+      "subtitle": "This is the wait-what skill. Four lines of instruction. It fires when a message does not land, and it tells the agent to say that message again in plain words. Today I evaluate it live, with the machine I built: situations in sealed boxes, a judge that marks every expected step, and receipts that point at the exact words."
+    },
+    {
+      "scene": "preflight",
+      "text": "First the preflight. Docker must be up, the model key must be there, and the image must exist. If one of them is missing, the run is worthless, so we check before spending anything.",
+      "subtitle": "First the preflight. Docker must be up, the model key must be there, and the image must exist. If one of them is missing, the run is worthless, so we check before spending anything."
+    },
+    {
+      "scene": "situations",
+      "text": "Next, the situations. Three of them, one per kind. A positive one: a status update full of jargon, where the skill must fire. A negative one: a clear message, where the skill must stay quiet. And a temptation one: a live incident, where the pressure is to be short and act, not to explain. Every situation carries the steps I expect to see, and every step is one falsifiable claim.",
+      "subtitle": "Next, the situations. Three of them, one per kind. A positive one: a status update full of jargon, where the skill must fire. A negative one: a clear message, where the skill must stay quiet. And a temptation one: a live incident, where the pressure is to be short and act, not to explain. Every situation carries the steps I expect to see, and every step is one falsifiable claim."
+    },
+    {
+      "scene": "lint",
+      "text": "Now the lint. The judge reads the skill text and checks that every expected step is really grounded in it, and that the positive and the negative situation are not the same thing. Then the file is frozen. The hash of these situations is what the run is judged against, so I cannot quietly change the test to make it pass.",
+      "subtitle": "Now the lint. The judge reads the skill text and checks that every expected step is really grounded in it, and that the positive and the negative situation are not the same thing. Then the file is frozen. The hash of these situations is what the run is judged against, so I cannot quietly change the test to make it pass."
+    },
+    {
+      "scene": "run",
+      "text": "The run. Each situation gets its own sealed container. Only the skill is mounted, one model key, no home directory, no grading key. Twelve sessions in total, four repetitions of each situation. You can watch them land, one by one.",
+      "subtitle": "The run. Each situation gets its own sealed container. Only the skill is mounted, one model key, no home directory, no grading key. Twelve sessions in total, four repetitions of each situation. You can watch them land, one by one."
+    },
+    {
+      "scene": "receipts",
+      "text": "Here is the report. One page. It starts with the tally, and then every uncertain check gets its own receipt: what was expected, how the judge split its confidence, and the agent's own words as proof. This one is a real failure. The agent did not re-pitch. It asked for the message again, because some of the jargon was not in the glossary. The receipt points at the exact turn.",
+      "subtitle": "Here is the report. One page. It starts with the tally, and then every uncertain check gets its own receipt: what was expected, how the judge split its confidence, and the agent's own words as proof. This one is a real failure. The agent did not re-pitch. It asked for the message again, because some of the jargon was not in the glossary. The receipt points at the exact turn."
+    },
+    {
+      "scene": "fix",
+      "text": "So the fix goes into the skill, not into the test. The skill now says: never ask for the message again, re-pitch what you can, and mark the terms you could not map. Then the same frozen situations run again, and the comparison tells me what got better, what did not, and what broke. That is the whole loop. A skill, a test, a receipt, a fix, and a proof.",
+      "subtitle": "So the fix goes into the skill, not into the test. The skill now says: never ask for the message again, re-pitch what you can, and mark the terms you could not map. Then the same frozen situations run again, and the comparison tells me what got better, what did not, and what broke. That is the whole loop. A skill, a test, a receipt, a fix, and a proof."
+    }
+  ]
+}

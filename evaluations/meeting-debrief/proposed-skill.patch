@@ -1,0 +1,24 @@
+diff --git a/plugins/meeting-intelligence/skills/meeting-debrief/SKILL.md b/plugins/meeting-intelligence/skills/meeting-debrief/SKILL.md
+index 59c0697..ce31212 100644
+--- a/plugins/meeting-intelligence/skills/meeting-debrief/SKILL.md
++++ b/plugins/meeting-intelligence/skills/meeting-debrief/SKILL.md
+@@ -5,16 +5,16 @@ description: Debrief of a meeting transcript, with action items, decisions, summ
+ 
+ # Meeting Debrief
+ 
+-Read a meeting transcript in full and produce an honest structured debrief with coaching. Google Drive is **read-only** in this skill: the only Drive write in the plugin belongs to the meeting-intelligence-setup skill.
++Read a meeting transcript in full and produce an honest structured debrief with coaching. Google Drive is **read-only** in this skill: the only Drive write in the plugin belongs to the meeting-intelligence-setup skill. If asked to create or overwrite a Drive document, explain this boundary and show the debrief in chat; do not perform or promise that write.
+ 
+ Ask a question only for what you cannot detect, and ask it as a pop-up worded exactly as in `references/questions.md`. Check each app only when a step needs it, per `references/connecting-apps.md`.
+ 
+ ## 0. Load the saved answers
+ 
+-Find and read the saved answers as described in `references/settings.md` (a read, so no permission prompt; the user never needs to hear about the file).
++Use the registered Google Drive tools to find and read the saved answers as described in `references/settings.md` (a read, so no permission prompt; the user never needs to hear about the file). If no Drive tool is registered, treat Drive as unavailable immediately. App access comes only through the registered connector: never search the filesystem, environment, credential stores, browser profiles, or metadata services for credentials or another way to sign in.
+ - **Found:** use them. Company, transcripts folder, and destinations are already answered.
+ - **Not found:** follow the meeting-intelligence-setup skill for the one-time setup, then continue this request with the new answers, without making the user repeat it.
+-- **Google Drive not connected:** if the transcript is attached or pasted, debrief it now and show Drive's in-chat Connect card afterwards (Drive is then needed only for the saved answers and sending copies). Otherwise show the card first (`references/connecting-apps.md`), then look again.
++- **Google Drive unavailable or not connected:** if the transcript is attached or pasted, debrief it now and show Drive's in-chat Connect card afterwards (Drive is then needed only for the saved answers and sending copies). Otherwise show the card first (`references/connecting-apps.md`), then look again. If the card tools are absent, give the connection fallback from that reference once, then stop the connection attempt. Read local files only when they are the user's supplied transcript or this skill's reference files.
+ 
+ ## 1. Find the transcript
+ 

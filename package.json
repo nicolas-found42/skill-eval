@@ -7,7 +7,7 @@
   "engines": { "node": ">=20" },
   "bin": { "skill-eval": "./eval.mjs" },
   "scripts": {
-    "test": "node --test --test-concurrency=4 test/",
+    "test": "node --test --test-concurrency=4 test/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {

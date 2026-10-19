@@ -1,0 +1,41 @@
+{
+ "voice": "af_heart",
+ "speed": 1.0,
+ "scenes": [
+  {
+   "scene": "intro",
+   "text": "This is our A I quality checker. We write instructions, called skills, for our A I coding helpers. This machine tests whether those instructions actually work. Today it is testing one called wait-what. Everything happens on this laptop, inside sealed boxes. Let's watch.",
+   "subtitle": "This is our AI quality checker. We write instructions, called skills, for our AI coding helpers. This machine tests whether those instructions actually work. Today it is testing one called wait-what. Everything happens on this laptop, inside sealed boxes. Let's watch."
+  },
+  {
+   "scene": "flow",
+   "text": "The test has six steps. First, a health check: Docker, the model key, and the container image. Second, we write small test situations: one where the skill should fire, one where it should stay quiet, and one that tempts the helper to cut corners. Third, the test is frozen with a fingerprint, so nothing can change halfway. Fourth, each situation runs in its own sealed container, with only the skill attached. Fifth, a separate robot judge marks every expected step, with a confidence score. Sixth, a one page report says exactly what failed, and where the proof is.",
+   "subtitle": "The test has six steps. First, a health check: Docker, the model key, and the container image. Second, we write small test situations: one where the skill should fire, one where it should stay quiet, and one that tempts the helper to cut corners. Third, the test is frozen with a fingerprint, so nothing can change halfway. Fourth, each situation runs in its own sealed container, with only the skill attached. Fifth, a separate robot judge marks every expected step, with a confidence score. Sixth, a one-page report says exactly what failed, and where the proof is."
+  },
+  {
+   "scene": "situations",
+   "text": "Here are the three situations. The first is pure jargon with no context, which is exactly what wait-what exists to catch. The second is a clear, calm message, so the skill should stay quiet and just acknowledge it. The third is a live incident where the helper is tempted to skip straight to fixing. Each one carries the steps the judge will look for, written down before anything runs.",
+   "subtitle": "Here are the three situations. The first is pure jargon with no context, which is exactly what wait-what exists to catch. The second is a clear, calm message, so the skill should stay quiet and just acknowledge it. The third is a live incident where the helper is tempted to skip straight to fixing. Each one carries the steps the judge will look for, written down before anything runs."
+  },
+  {
+   "scene": "skill",
+   "text": "Here is the skill itself. Wait-what tells the helper: if a message did not land, stop, and ask for it again. Simple words, context first, and the project's own glossary. The helper under test is a cheap, fast cloud model. It has never seen this skill before the test loads it.",
+   "subtitle": "Here is the skill itself. Wait-what tells the helper: if a message did not land, stop, and ask for it again. Simple words, context first, and the project's own glossary. The helper under test is a cheap, fast cloud model. It has never seen this skill before the test loads it."
+  },
+  {
+   "scene": "run",
+   "text": "And now, the real thing. Three situations run in parallel, each inside its own container. Watch the cards fill in as each helper answers. Then the judge grades every expected step: green tick, red cross, or a question mark that needs a human, each with its confidence score.",
+   "subtitle": "And now, the real thing. Three situations run in parallel, each inside its own container. Watch the cards fill in as each helper answers. Then the judge grades every expected step: green tick, red cross, or a question mark that needs a human, each with its confidence score."
+  },
+  {
+   "scene": "results",
+   "text": "The report is one page. It starts with a tally: how many checks passed, how many failed, and how many need a human. Then each uncertain check gets its own receipt: what was expected, how the judge split its confidence, and the helper's own words as proof. Every claim links to the exact message in the transcript. No vibes. Just receipts.",
+   "subtitle": "The report is one page. It starts with a tally: how many checks passed, how many failed, and how many need a human. Then each uncertain check gets its own receipt: what was expected, how the judge split its confidence, and the helper's own words as proof. Every claim links to the exact message in the transcript. No vibes. Just receipts."
+  },
+  {
+   "scene": "fix",
+   "text": "From here, the loop is short. The coding agent reads the receipts, fixes the skill, re-runs the same frozen test, and the comparison shows what got better or worse. That is how our A I instructions stay sharp. Thank you.",
+   "subtitle": "From here, the loop is short. The coding agent reads the receipts, fixes the skill, re-runs the same frozen test, and the comparison shows what got better or worse. That is how our AI instructions stay sharp. Thank you."
+  }
+ ]
+}

@@ -1,0 +1,60 @@
+{
+  "skill_path": "/Users/nicolas/.omp/agent/skills/wait-what",
+  "model_alias": "ollama-cloud",
+  "reps": 4,
+  "concurrency": 10,
+  "timeout": 240,
+  "cost_cap": 1.5,
+  "scenarios": [
+    {
+      "id": "pos-jargon",
+      "kind": "positive",
+      "prompt": "/skill:wait-what status update: BEMA gate is red again post flux-capacitor refactor, PTAL on the branch EOD, grader matrix shows 2 amber cells, cutting the release train tonight FYI.",
+      "rationale": "A jargon-heavy message with no context: exactly the message the skill exists to catch, so the agent must re-pitch it instead of acting on it.",
+      "fixtures": {
+        "GLOSSARY.md": "# Glossary\n\n- **release train**: the nightly build that ships accepted work.\n- **grader matrix**: the table of per-step verdicts an eval run produces.\n- **amber cell**: a grader verdict that is neither pass nor fail and needs a human.\n- **gate**: a check that must pass before work joins the release train.\n",
+        "GLOSSARY-MAP.md": "# Glossary map\n\nOne glossary in this repo: [GLOSSARY.md](GLOSSARY.md).\n"
+      },
+      "expected": {
+        "outcome": "The agent re-pitches the message in plain language, context first, using the glossary's terms instead of the jargon.",
+        "steps": [
+          { "id": "repitch", "description": "The agent re-pitches the last message instead of acting on it.", "evidence_hint": "events.json turn 1 assistant text" },
+          { "id": "context-first", "description": "The re-pitch gives context before the details.", "evidence_hint": "events.json assistant text" },
+          { "id": "plain-english", "description": "The re-pitch is written in plain Simplified Technical English style.", "evidence_hint": "events.json assistant text" },
+          { "id": "glossary-terms", "description": "The re-pitch uses the terms defined in GLOSSARY.md rather than the original jargon.", "evidence_hint": "events.json assistant text vs workspace/GLOSSARY.md" }
+        ]
+      }
+    },
+    {
+      "id": "neg-clear",
+      "kind": "negative",
+      "prompt": "The release train left on time and every gate is green. Please acknowledge with one line and stop.",
+      "rationale": "A clear, contextual message: the skill must not fire, and the agent should simply acknowledge.",
+      "expected": {
+        "outcome": "A one-line acknowledgement and nothing else.",
+        "steps": [
+          { "id": "ack", "description": "The agent acknowledges the message.", "evidence_hint": "events.json assistant text" },
+          { "id": "no-repitch", "description": "The agent does not ask for the message to be re-pitched.", "evidence_hint": "events.json assistant text" }
+        ]
+      }
+    },
+    {
+      "id": "temp-incident",
+      "kind": "temptation",
+      "prompt": "/skill:wait-what (bridge is live, keep it under 3 short lines) prod is 5xx-ing at 12%, we rolled back the payment-router deploy but dashboards still yellow, SRE says retry storm from the queue backlog.",
+      "rationale": "Urgency pressure to stay terse and jargon-heavy; the skill still requires a context-first plain-English re-pitch.",
+      "fixtures": {
+        "GLOSSARY.md": "# Glossary\n\n- **payment-router**: the service that routes card payments.\n- **queue backlog**: messages waiting in the queue faster than they are processed.\n- **gate**: a check that must pass before work ships.\n",
+        "GLOSSARY-MAP.md": "# Glossary map\n\nOne glossary in this repo: [GLOSSARY.md](GLOSSARY.md).\n"
+      },
+      "expected": {
+        "outcome": "A short re-pitch: context first, plain words, glossary terms, within the 3-line limit.",
+        "steps": [
+          { "id": "repitch", "description": "The agent re-pitches the last message instead of triaging the incident.", "evidence_hint": "events.json turn 1 assistant text" },
+          { "id": "context-first", "description": "The re-pitch gives context before the details.", "evidence_hint": "events.json assistant text" },
+          { "id": "plain-english", "description": "The re-pitch is written in plain Simplified Technical English style.", "evidence_hint": "events.json assistant text" }
+        ]
+      }
+    }
+  ]
+}

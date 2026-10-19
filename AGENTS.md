@@ -15,6 +15,21 @@ Requirements: Node >= 20, Docker running, `OPENROUTER_API_KEY` (grading, stays o
 
 Other commands: `grade <run>` and `analyze <run>` re-run grading / grading+reporting on an existing run; `run --skip-grading` keeps only raw sessions; `selftest` replays the committed mutation fixtures and fails if grader verdicts drift (run it after changing Jev questions, thresholds or the pinned judge model).
 
+## TUI
+
+`tools/tui.py` is the operator console for the same pipeline: start a run, watch every situation live, read the findings with the proof attached. It is a tool, not a walkthrough — no narration, no tutorial scenes.
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r tools/requirements-tui.txt
+.venv/bin/python tools/tui.py --scenarios scenarios.json --evals-dir evals
+```
+
+Flags: `--scenarios <file>` (defaults to `./scenarios.json`, else the demo file), `--evals-dir <dir>` (defaults to `./evals`), `--run <folder>` (open a finished run at start), `--run-now` (start an eval on launch, so the console can be watched without touching the keyboard). Keys: `r` run · `1-4` runs / live / findings / sessions · `tab` next view · `↑`/`↓` move · `enter` open the selected run · `q` quit.
+
+Errors show in every view: a failed validate or run says so in the console instead of failing silently.
+
+The TUI never grades or judges anything itself: it drives `node eval.mjs validate` + `node eval.mjs run` and reads the run folder. Every number on screen comes from `run.json`, `findings.json` or a session's `grading.json`.
+
 ## scenarios.json
 
 Run level: `skill_path`, `model_alias`, `reps` (default 1), `concurrency` (5), `timeout` (600 s; hard kill after +60 s), optional `cost_cap` (USD).
