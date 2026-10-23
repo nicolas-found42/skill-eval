@@ -138,7 +138,7 @@ Step 5 is the point of the tool. The loop is one change to `SKILL.md` and one mo
 **One scenario, one container.** The container gets:
 
 - `run/<scenario>/workspace` bind-mounted at `/work` (read-write),
-- the skill snapshot bind-mounted at `/root/.omp/agent/skills/<skill-name>` (**read-only**),
+- the skill snapshot bind-mounted at `/root/.omp/agent/skills/<skill-name>` (**read-only**), or — for a plugin (`skill_path` pointing at `plugin.json` + `skills/`) — the whole plugin at `/plugin` (**read-only**) with `--plugin-dir /plugin` on every omp invocation,
 - optionally `mcp.json` at `/root/.omp/agent/mcp.json` (read-only),
 - the model's API key passed **by name only** (`-e OLLAMA_CLOUD_API_KEY`), so the value comes from the Docker client's environment and never appears on a command line,
 - no host home, and no grading key.
@@ -159,7 +159,7 @@ sh -c 'rc=0; m="$1"; t="$2"; first="$3"; shift 3
 
 Prompts travel as positional arguments to `sh -c`; they are never interpolated into the script, so they need no escaping.
 
-**The image** is `oven/bun:1` plus `git`, `ca-certificates`, `ripgrep` and a global `omp` install (`@oh-my-pi/pi-coding-agent@${OMP_VERSION}`), tagged `skill-eval-omp:<ompVersion>` from the **host's** `omp --version`. If the tag exists it is reused; it is never rebuilt.
+**The image** is `oven/bun:1` plus `git`, `ca-certificates`, `ripgrep`, `python3` and a global `omp` install (`@oh-my-pi/pi-coding-agent@${OMP_VERSION}`), tagged `skill-eval-omp:<ompVersion>` from the **host's** `omp --version`. If the tag exists it is reused; it is never rebuilt.
 
 ---
 
@@ -171,12 +171,14 @@ Prompts travel as positional arguments to `sh -c`; they are never interpolated i
 |---|---|---|---|
 | `doctor` | — | `--model <alias>` | Checks the Docker daemon, the grading key, the model key; builds or reuses the container image. |
 | `validate` | `<scenarios.json>` | — | Structure-checks the file, lints every step with Jev, writes `<file>.lock.json`. |
-| `run` | `<scenarios.json>` | `--evals-dir <dir>`, `--skip-grading`, `--evidence-cap <chars>` | Runs every scenario in its own container, then grades and reports (unless `--skip-grading`). |
-| `grade` | `<run-folder>` | `--evidence-cap <chars>` | Re-grades an existing run's sessions; writes `grading.json` per session. |
-| `analyze` | `<run-folder>` | `--evidence-cap <chars>` | Grade + classify + merge + report: `findings.json`, `summary.md`, per-session `analysis.md`. |
+| `run` | `<scenarios.json>` | `--evals-dir <dir>`, `--skip-grading`, `--evidence-cap <chars>`, `--keep-evidence` | Runs every scenario in its own container, then grades and reports (unless `--skip-grading`). |
+| `grade` | `<run-folder>` | `--evidence-cap <chars>`, `--keep-evidence` | Re-grades an existing run's sessions; writes `grading.json` per session. |
+| `analyze` | `<run-folder>` | `--evidence-cap <chars>`, `--keep-evidence` | Grade + classify + merge + report: `findings.json`, `summary.md`, per-session `analysis.md`. |
 | `compare` | `<before-run> <after-run>` | — | Pairs findings across two runs; writes `compare.json` into the *after* run folder. |
+| `diagnose` | `<run-folder>` | `--session <name>` | Prints the run story (warnings, per-session exits/timeouts/verdicts) or one session's timeline with timeout, truncation and judge gaps. Never calls the judge. A run with no `run.json` is diagnosed too: the story is rebuilt from the session folders. |
 | `selftest` | — | `--fixtures <dir>` | Replays the committed fixture sessions through the grader and fails on verdict drift. |
-| `normalize` | `<session-dir>` | `--timed-out` | Parses a session's `transcript.jsonl` into `events.json` and `result.json`. |
+| `normalize` | `<session-dir>` | `--timed-out`, `--timeout-kind <kind>`, `--exit-code <n>` | Parses a session's `transcript.jsonl` (raw or `.gz`) into `events.json`, `turns.json` and `result.json`. Recovers a session the harness never normalized. |
+| `archive` | `<evals-dir>` | `--keep <n>` | Gzips the transcripts of every run but the `n` newest (default 3). An archived session still normalizes. |
 
 ### `doctor`
 
@@ -231,7 +233,8 @@ node eval.mjs analyze evals/<run>          # grading + classification + findings
 
 `grade` and `analyze` both accept `--evidence-cap <chars>` (default `200000`, `EVIDENCE_CAP` in `lib/grade.mjs`) — the maximum size of the evidence blob the judge sees. An over-cap transcript is cut and the session is marked `truncated`; **a truncated session can never auto-pass a step**. The value must be a positive number; anything else is a usage error, not a silent no-op. `run` forwards the same flag to the analysis it runs at the end, so a full run can be re-judged with a larger cap without re-running the containers.
 
-`analyze` is what `run` calls at the end unless `--skip-grading` was passed.
+All three also accept `--keep-evidence`: writes `grading.evidence.json` per session — the exact state, questions and answers each judge call saw (secret-free; keys never enter evidence). Without the flag the file is still written for the sessions where auditing matters — any `needs_human` verdict or an over-cap (truncated) transcript — and removed again on a clean re-grade. Pass the flag to keep it for every session.
+
 
 ### `compare`
 
@@ -265,7 +268,16 @@ Statuses: `still_failing` (paired), `fixed` (only in the before run), `regressed
 
 The result is also written to `compare.json` in the **after** run folder.
 
-### `selftest`
+### `diagnose`
+
+```bash
+node eval.mjs diagnose evals/<run>                    # run story: warnings, per-session exits/timeouts/verdicts
+node eval.mjs diagnose evals/<run> --session pos-jargon  # one session: timeline, timeout cause, gaps
+node eval.mjs diagnose evals/<run> --session pos-jargon --json  # machine-readable: gap codes + suggested_rerun
+node eval.mjs index [evals-dir]                      # history: every run as JSON, no folder walking
+```
+
+Reads only what `run` and the grader wrote — it never calls the judge, so it is free and instant. The run view prints attribution (skill/model/omp/image/git/seed), warnings, console errors, and one line per session. The session view prints a per-turn timeline (model time from `turn_end`, tool wall time from `details.wallTimeMs`), disambiguates the timeout (`killed` = the hard kill fired, `hung` = the container went silent for a full `no_output_timeout` window before the kill, `expired` = the container outlived the timeout on its own), and lists gaps: capped events with `raw_chars` (full text in `events.full.json`), a saved `transcript.partial.txt` tail, over-cap evidence, and un-auditable `needs_human` steps (re-run with `--keep-evidence`). `--json` returns the same as gap codes plus a concrete `suggested_rerun` (`evidence_cap`, `keep_evidence`, `timeout`).
 
 ```bash
 node eval.mjs selftest [--fixtures <dir>]
@@ -296,13 +308,16 @@ Turns a session folder's `transcript.jsonl` into `events.json` (a flat, capped t
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `skill_path` | string | — | **Required.** Path to the skill directory (the one containing `SKILL.md`). |
+| `skill_path` | string | — | **Required.** Path to the skill directory (the one containing `SKILL.md`), or to a plugin directory (`plugin.json` + `skills/` + root `SKILL.md`). |
 | `model_alias` | string | `models.json` → `default` | Which registered model runs the sessions. |
 | `reps` | number | `1` | Repetitions per scenario. Reps > 1 create `<scenario-id>-r2`, `-r3`, … folders. |
 | `concurrency` | number | `5` | Containers running at the same time. |
 | `timeout` | number (seconds) | `600` | Per-turn limit (`omp --max-time`) and the session's time limit. |
 | `hard_kill_grace` | number (seconds) | `60` | Extra time before the container is hard-killed. |
 | `cost_cap` | number (USD) | none | When the accumulated session cost exceeds it, the remaining sessions are skipped. |
+| `container_memory_mb` | number (MB) | `4096` | Hard container memory limit (`docker run --memory`). An OOM kill becomes a recorded fact (`oom_killed` in `result.json`) instead of a hung container. `0` disables the limit. |
+| `max_retries` | number | `0` | Retries per session on transient failures (timeout, OOM, exit 137/125). The failed attempt's transcript is kept as `transcript.retry-N.jsonl`. |
+| `retry_backoff_ms` | number (ms) | `5000` | Base backoff between retries; multiplied by the attempt number. |
 | `scenarios` | array | — | **Required.** The scenarios themselves. |
 
 ### Scenario level
@@ -417,25 +432,49 @@ The lock file is a freeze, not a cache: **edit the scenarios, then re-validate**
 
 ```
 evals/<YYYYMMDD-HHMMSS>-<skill>-<model-alias>-<skillhash7>/
-  run.json               run metadata, limits, costs, warnings
+  run.json               run metadata, limits, costs, warnings, attribution (image digest, git SHA, clock, host)
   scenarios.json         copy of the input file
   scenarios.lock.json    the freeze
   skill/                 snapshot of the skill under test (read-only in the container)
   mcp.json               only when the skill declares MCP servers
   summary.md             human/agent-readable report, failures first
   findings.json          the machine-readable findings
+  tui-errors.json        only when the TUI produced this run and hit orchestration errors
   <scenario-id>[-rN]/
-    scenario.json        the scenario plus {skill, rep}
-    transcript.jsonl     raw omp JSON output
-    stderr.txt           container stderr
-    events.json          normalized, capped event timeline
-    result.json          session totals
-    grading.json         per-step verdicts and probabilities  (written by the grader)
+    scenario.json        the scenario plus {skill, rep, seed, timeout}
+    session.json         the exact conditions the session ran under (seed, model, timeouts, followup count)
+    transcript.jsonl     raw omp JSON output (retried attempts: transcript.retry-N.jsonl)
+    transcript.partial.txt  always written; the dropped tail (empty when nothing was cut)
+    stderr.txt           container stderr (retried attempts: stderr.retry-N.txt)
+    host.jsonl           host-side orchestration log (schedule/start/no_output/kill/end/normalize/retry, byte counts, stderr tail, docker state)
+    host-clock.json      host arrival clock per transcript line (drives `host_wall_ms` in events.json)
+    telemetry.jsonl      live telemetry: container lifecycle, model turns, tool spans, resource samples, grading, judge calls
+    events.json          normalized, capped event timeline (clock `t`, `raw_chars`, `wall_ms` and `host_wall_ms` per tool)
+    events.full.json     only on timeout/failure/truncation: the uncapped timeline for diagnosis
+    turns.json           per turn: model, provider, response id, TTFT, usage, cost
+    result.json          session totals (clock span, sizes, `timeout_kind`, per-tool stats, byte counts, `hung`, `oom_killed`, `provider_retries`, `clock_offset_ms`, `retry_attempts`)
+    grading.json         per-step verdicts, probabilities and the judge trace  (written by the grader)
+    grading.evidence.json  on any needs_human verdict or truncated evidence (always with --keep-evidence): exact judge state, questions, answers
     analysis.md          this session alone, with pointers    (written by the reporter)
     workspace/           the container's /work, with any fixtures
-```
 
-`run.json`, `scenarios.json`, `scenarios.lock.json`, `skill/` and `mcp.json` are written before the first container starts; `summary.md` and `findings.json` are written by the reporter after the sessions finish.
+`<evals-dir>/.index.jsonl` holds one line per run (`run`, `t_start`, skill/model hashes, sessions, verdicts, pass rates) — the history query without walking folders. The repo-root `.evals-index.jsonl` (tracked) holds the same for runs in the default `evals/` dir; `node eval.mjs index` prints the equivalent as JSON for any `--evals-dir`.
+
+`<evals-dir>/.metrics.db` is the cross-run index: sessions, steps, telemetry summaries, provider retries and findings, all queryable. `analyze` updates it after every run, and `node eval.mjs query <type>` re-indexes what it can before answering:
+
+| Query | Answers |
+|---|---|
+| `failing-steps` | which steps fail, in how many runs, and how often they passed |
+| `flaky-steps` | steps that sometimes pass and sometimes fail |
+| `error-classes` | how the failures are distributed |
+| `pass-rate-trend` | pass rate per run and scenario, over time |
+| `slow-sessions` | the slowest sessions, with their error class |
+| `resource-usage` | peak memory and CPU per session |
+| `runs` | every indexed run |
+| `provider-errors` | which sessions were rate-limited, how often, and whether the retries rode it out |
+| `recurring-failures` | the defects that keep coming back: one issue, seen in several runs (`--judge` clusters wordings that differ; without it, only identical descriptions match) |
+
+Every answer carries a `stale` block naming the run folders the index could not read, so a history query never quietly answers for a subset.
 
 ### `run.json`
 
@@ -447,18 +486,28 @@ evals/<YYYYMMDD-HHMMSS>-<skill>-<model-alias>-<skillhash7>/
   "model": { "alias": "ollama-cloud", "model": "ollama-cloud/deepseek-v4.1-flash", "env": "OLLAMA_CLOUD_API_KEY" },
   "omp_version": "18.12.2",
   "image": "skill-eval-omp:18.12.2",
-  "limits": { "concurrency": 5, "timeout": 600, "hard_kill_grace": 60, "reps": 1, "cost_cap": null },
+  "image_digest": "sha256:…",
+  "git_sha": "…",
+  "t_start": "2026-10-19T12:27:50.000Z",
+  "t_end": "2026-10-19T12:31:02.000Z",
+  "host": { "node": "v24.22.0", "platform": "darwin", "arch": "arm64" },
+  "seed": null,
+  "limits": { "concurrency": 5, "timeout": 600, "hard_kill_grace": 60, "no_output_timeout": 300, "reps": 1, "cost_cap": null, "container_memory_mb": 4096, "max_retries": 0 },
   "sessions": 5,
   "skipped_for_cost": [],
   "aborted_for_cost": false,
+  "timeouts": 1,
+  "retry_attempts": 0,
   "session_cost": 0.0431,
   "warnings": [],
+  "scenario_stats": [{ "scenario": "pos-jargon", "reps": 1, "timeouts": 0, "errors": 0, "steps_total": 3, "steps_done": 2, "pass_rate": 0.67, "reps_done": 0 }],
+  "verdicts": { "done": 10, "skipped": 5 },
+  "pass_rate": 0.67,
   "judge": { "model": "typesafe/jev-1.14", "snapshots": ["…"] },
   "analysis_cost": 0.0210,
   "lint_cost": 0.0021,
   "total_cost": 0.0662
 }
-```
 
 **Read `warnings` first.** A warning means a failure may be a missing dependency rather than a broken skill:
 
@@ -475,7 +524,14 @@ evals/<YYYYMMDD-HHMMSS>-<skill>-<model-alias>-<skillhash7>/
   "kind": "positive",
   "exit_code": 0,
   "timeout": false,
+  "timeout_kind": null,
   "duration_ms": 41233,
+  "t_start": 1792385594319,
+  "t_end": 1792385635552,
+  "transcript_chars": 35329,
+  "dropped_chars": 0,
+  "truncated_events": 0,
+  "tool_stats": { "read": { "calls": 2, "errors": 0, "wall_ms": 0 }, "bash": { "calls": 1, "errors": 0, "wall_ms": 9 } },
   "skill_loaded": true,
   "skill_loaded_turn": 2,
   "tool_sequence": ["read", "bash", "read"],
@@ -485,11 +541,11 @@ evals/<YYYYMMDD-HHMMSS>-<skill>-<model-alias>-<skillhash7>/
 }
 ```
 
-`skill_loaded` is true when the transcript shows a `read` of `skill://<name>` or of any path ending in `<name>/SKILL.md`.
+`skill_loaded` is true when the transcript shows a `read` of `skill://<name>` or of any path ending in `<name>/SKILL.md`. `provider_errors` appears when omp exhausted its own retries against the model provider (`429`/`5xx`); such a session produced empty assistant turns and is classified `infra_failure`, never `skill_not_triggered`. `empty_assistant_turns` counts assistant messages with no content — the shape a provider outage leaves behind. `timeout_kind` is `killed` when the hard kill fired, `hung` when the container went silent for a full `no_output_timeout` window before the kill, `expired` when the container outlived the timeout on its own, `null` otherwise. `hung`, `stdout_bytes`, `stderr_bytes`, `stderr_tail` and `oom_killed` are host-measured container facts the transcript cannot carry. Times are epoch milliseconds from the transcript clock; `run` overrides them with the host clock when it normalizes.
 
 ### `events.json` (per session)
 
-A flat array of events, each `{turn, kind, …}`, where `kind` is `assistant_text`, `tool_call` or `tool_result`. Text is capped at 4000 characters per event (`EVENT_CAP`) and flagged `truncated`. `turn` increments on every assistant message, so a session with followups has one continuous numbering — a finding's `turn` points into the whole conversation.
+A flat array of events, each `{turn, kind, …}`, where `kind` is `assistant_text`, `tool_call`, `tool_result` or `user_turn`. A `user_turn` marks a scripted followup reply, so an ordering claim ("did not render before the approval turn") is judgeable against one continuous numbering. Text is capped at 4000 characters per event (`EVENT_CAP`) and flagged `truncated` with the original size in `raw_chars`. Each event carries `t` (epoch ms clock, null when the transcript has none); tool results carry `wall_ms` when the tool reported it and `is_error` when the tool failed. `turn` increments on every assistant message, so a session with followups has one continuous numbering — a finding's `turn` points into the whole conversation.
 
 ---
 
@@ -539,6 +595,7 @@ Written by `grade`; `analyze` adds the three label fields to the same file.
   "scenario": "pos-jargon",
   "truncated": false,
   "evidence_chars": 48210,
+  "evidence_breakdown": { "skill_chars": 1200, "prompt_chars": 80, "followups_chars": 0, "transcript_chars": 45000, "workspace_chars": 1930 },
   "steps": [
     {
       "id": "load",
@@ -559,7 +616,7 @@ Written by `grade`; `analyze` adds the three label fields to the same file.
 }
 ```
 
-The last three keys are present only after `analyze` (or a `run` that graded). `grade` alone writes the verdicts and the judge record.
+The last three keys are present only after `analyze` (or a `run` that graded). `grade` alone writes the verdicts and the judge record. `evidence_breakdown` says which part of the evidence dominates the cap, so a truncated session tells you what to shrink.
 
 ---
 
@@ -639,7 +696,7 @@ Statuses per finding: `regressed`, `still_failing`, `new`, `fixed`, plus the pas
 | No grading key in a container | `OPENROUTER_API_KEY` is host-side only; `preflight` throws if a scenario lists it in `env[]` |
 | Model key by name only | `-e OLLAMA_CLOUD_API_KEY`; the value comes from the Docker client environment, never the command line |
 | Fixtures stay in the workspace | A fixture path that resolves outside the workspace is rejected before anything is created |
-| One container per scenario | `docker run --rm --name skill-eval-<run>-<scenario>` |
+| One container per scenario | `docker run --rm --name skill-eval-<run>-<scenario> --memory <container_memory_mb>m` (0 disables; the limit makes OOM a recorded `oom_killed` instead of a host-wide stall) |
 
 **The network is open.** Egress is not filtered and the container gets default Docker networking. Use a spend-capped model key, and `cost_cap` to bound a run.
 
@@ -675,7 +732,10 @@ The runner parses that block (no YAML dependency — it reads the subset skills 
 - `includeTools` is a frontmatter-only filter and is not copied.
 - A server whose `command` is a host path (`/…`, `~…`) cannot start in the container: that is reported as a warning, and any resulting failure is a missing dependency, not a broken skill.
 
----
+## Plugins (Agent Plugins 1.0)
+
+A `skill_path` pointing at a plugin directory (`plugin.json` + `skills/` + root `SKILL.md`) evaluates the whole plugin, not one skill. The runner mounts the plugin whole at `/plugin` (`:ro`) and passes `--plugin-dir /plugin` on every omp invocation, so stage skills resolve relatively and the portable `mcp.json` `${PLUGIN_ROOT}` paths land on the mounted tree. The plugin's `mcp.json` is parsed the same closed way omp enforces (`${PLUGIN_ROOT}` rewritten to `/plugin`; `env` values never copied; `cwd: /plugin`). Reading any stage skill (`skill://intake`, …) counts as `skill_loaded`; Jev grounding sees the root SKILL.md plus every stage skill. Write scenarios from what the plugin advertises, reusing its own `evals/` prompts where they fit.
+
 
 ## Models and keys
 

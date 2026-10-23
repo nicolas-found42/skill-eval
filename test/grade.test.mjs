@@ -124,10 +124,63 @@ test('grading without OPENROUTER_API_KEY fails clearly and leaves the session fo
   assert.ok(!fs.existsSync(path.join(dir, 'grading.json')), 'no ungraded grading.json emitted');
 });
 
+test('the judge trace is kept by default, so a verdict can be audited without paying for the judge again', async () => {
+  const { run, dir } = await session();
+  const r = await grade(run);
+  assert.equal(r.code, 0, r.stderr);
+  const g = readJson(path.join(dir, 'grading.json'));
+  assert.ok(Array.isArray(g.judge_trace), 'grading.json carries a judge trace');
+  assert.equal(g.judge_trace.length, g.steps.length);
+  const first = g.judge_trace[0];
+  assert.equal(first.step, g.steps[0].id);
+  assert.ok(first.questions.step, 'the exact question is recorded');
+  assert.ok(first.answers.step.probabilities, 'the judge answer is recorded');
+  assert.equal(typeof first.evidence.chars, 'number');
+  assert.ok(first.evidence.head.length > 0, 'a slice of the evidence the judge saw is recorded');
+});
+
 test('grading never sends anything but the eval session evidence: grading.json records judge model and cost', async () => {
   const { run, dir } = await session();
   await grade(run);
   const g = readJson(path.join(dir, 'grading.json'));
   assert.equal(g.judge.model, JEV_MODEL);
   assert.ok(g.judge.cost > 0 && g.judge.calls >= 1);
+});
+
+test('grading.evidence.json is written by default when a step needs a human, and removed on a clean re-grade', async () => {
+  const { gradeSession } = await import('../lib/grade.mjs');
+  const { readSkill } = await import('../lib/skill.mjs');
+  const { run, dir } = await session();
+  const skill = readSkill(path.join(run, 'skill'));
+  // A stub judge: every step comes back maximally unclear, which maps to needs_human.
+  /** @param {{ done: number, unclear: number, attempted: number }} p */
+  const stubJudge = ({ done, unclear, attempted }) => ({
+    model: 'stub', snapshots: new Set(), cost: 0, calls: 0,
+    /** @param {any} _state @param {Record<string, { type: string }>} questions */
+    async ask(_state, questions) {
+      this.calls++;
+      const answers = {};
+      for (const [id, q] of Object.entries(questions)) {
+        answers[id] = q.type === 'choice'
+          ? { probabilities: { done, not_done: 1 - done - unclear, unclear }, confidence: 0.9 }
+          : { noul: attempted };
+      }
+      return answers;
+    },
+  });
+  const unclearJudge = /** @type {any} */ (stubJudge({ done: 0.1, unclear: 0.8, attempted: 0.5 }));
+  const g = await gradeSession(dir, { skill, jev: unclearJudge });
+  assert.ok(g.steps.some(s => s.verdict === 'needs_human'), 'stub verdict is needs_human');
+  const evFile = path.join(dir, 'grading.evidence.json');
+  assert.ok(fs.existsSync(evFile), 'evidence file written for a needs_human session without --keep-evidence');
+  const kept = readJson(evFile);
+  assert.equal(kept.scenario, 's1');
+  assert.ok(kept.state.transcript.length > 0, 'the judge state is in the file');
+  assert.ok(kept.steps.some(s => s.answers.step.probabilities.unclear === 0.8), 'the per-step judge answers are in the file');
+
+  // a clean re-grade (every step done) removes the stale file
+  const doneJudge = /** @type {any} */ (stubJudge({ done: 0.95, unclear: 0.02, attempted: 0.1 }));
+  const g2 = await gradeSession(dir, { skill, jev: doneJudge });
+  assert.ok(g2.steps.every(s => s.verdict === 'done'), 'stub verdict is done');
+  assert.ok(!fs.existsSync(evFile), 'a clean re-grade removes the stale evidence file');
 });

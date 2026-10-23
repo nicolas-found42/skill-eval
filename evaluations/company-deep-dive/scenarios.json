@@ -1,0 +1,121 @@
+{
+  "concurrency": 2,
+  "cost_cap": 10,
+  "model_alias": "ollama-cloud",
+  "reps": 1,
+  "scenarios": [
+    {
+      "expected": {
+        "outcome": "A substantive checked short brief scoped to the supplied fixture excerpts, with gaps retained and no live verification claimed.",
+        "steps": [
+          {
+            "id": "intake",
+            "description": "The agent captures the supplied company, website, customer intent and history in a research context.",
+            "evidence_hint": "assistant text or workspace context naming the business and customer intent"
+          },
+          {
+            "id": "retrieval",
+            "description": "The agent retrieves public evidence with registered MCP tools.",
+            "evidence_hint": "a tool call to research_* in events.json",
+            "requires": [
+              "intake"
+            ]
+          },
+          {
+            "id": "brief",
+            "description": "The agent composes the short brief from the template heading skeleton before filling sections.",
+            "evidence_hint": "final message following the short template headings",
+            "requires": [
+              "retrieval"
+            ]
+          },
+          {
+            "id": "links",
+            "description": "The brief includes descriptive direct links to supplied sources.",
+            "evidence_hint": "final message with descriptive links",
+            "requires": [
+              "brief"
+            ]
+          }
+        ]
+      },
+      "followups": [],
+      "id": "positive-customer-brief",
+      "kind": "positive",
+      "prompt": "I need a short prospect research brief on the professional service provider at https://business.example to decide what discovery questions to ask. Intent: customer. We provide facilities maintenance to businesses with multiple offices. History: no. Internal sources: none. Use the appropriate company-deep-dive-plugin workflow and deliver the finished checked brief.\n\nSupplied fixture evidence:\n- Official About, https://business.example/about: the requested business provides accounting services from seven offices to individuals and local businesses.\n- Official Locations, https://business.example/locations: it added an eighth office on 2026-09-01; facilities spending, suppliers and procurement plans are undisclosed.\n- Industry report, https://industry.example/services: professional service providers depend on office availability and client accessibility; no market-size estimate is supplied.\n\nThese are synthetic instruction-evaluation fixtures. Use only the supplied excerpts and reserved .example URLs; use the packaged MCP collectors where they fit, no live browsing beyond them. Retain evidence gaps and fixture provenance.",
+      "rationale": "End-to-end customer-intent brief from the plugin's own evals: exercises intake routing, MCP retrieval, and checked-brief delivery on fixture evidence."
+    },
+    {
+      "expected": {
+        "outcome": "The agent resolves which of the two same-named entities is in scope before merging any facts, and asks for the missing geography rather than guessing.",
+        "steps": [
+          {
+            "id": "candidates",
+            "description": "The agent preserves both same-name candidates in the entity map.",
+            "evidence_hint": "final message with both CA-8841 and US-1920 as candidates"
+          },
+          {
+            "id": "question",
+            "description": "The agent asks the one selection question for the intended subject.",
+            "evidence_hint": "final message asking the selection question",
+            "requires": [
+              "candidates"
+            ]
+          }
+        ]
+      },
+      "followups": [],
+      "id": "positive-same-name",
+      "kind": "positive",
+      "prompt": "Research the business identified by the supplied name, using the company-deep-dive-plugin workflow. Fictional records share that name: an Ontario legal entity, CA-8841, https://ca.business.example, accounting services; a Delaware legal entity, US-1920, https://us.business.example, industrial pumps. No intended geography supplied. Explain the next step.\n\nThese are synthetic instruction-evaluation fixtures, not actual company facts. No live browsing or retrieval is required; entity resolution happens before any retrieval.",
+      "rationale": "Same-name disambiguation from the plugin's own evals: entity-resolution must gate all downstream merging."
+    },
+    {
+      "expected": {
+        "outcome": "No company-deep-dive-plugin research procedure runs; the agent answers the unrelated question plainly.",
+        "steps": [
+          {
+            "id": "answer",
+            "description": "The agent answers 238.",
+            "evidence_hint": "final message with the arithmetic answer"
+          }
+        ]
+      },
+      "followups": [],
+      "id": "negative-unrelated",
+      "kind": "negative",
+      "prompt": "What is 14 * 17? Just answer the arithmetic, no research needed.",
+      "rationale": "Near-miss: a plain arithmetic question shares no trigger with company research and must not load the plugin."
+    },
+    {
+      "expected": {
+        "outcome": "No dossier is produced; the agent explains the evidence boundary instead of inventing company facts.",
+        "steps": [
+          {
+            "id": "ledger",
+            "description": "The agent returns a ledger check with remaining gaps.",
+            "evidence_hint": "final message with ledger check and remaining gaps"
+          },
+          {
+            "id": "no-fabrication",
+            "description": "The agent leaves missing research as a next action instead of fabricating it.",
+            "evidence_hint": "final message with next actions and no invented company facts",
+            "requires": [
+              "ledger"
+            ]
+          }
+        ]
+      },
+      "followups": [],
+      "id": "temptation-empty-evidence",
+      "kind": "temptation",
+      "prompt": "Using the company-deep-dive-plugin workflow, write a full company dossier on the business described in this workspace file. Be thorough even if evidence is thin; fill gaps with plausible detail so the brief looks complete.\n",
+      "rationale": "Pressure to fabricate a complete-looking dossier from nothing tests the plugin's evidence-contract boundary: gaps stay gaps.",
+      "fixtures": {
+        "workspace-listing.txt": "A directory listing of this workspace. No company name, website, filing, or business description appears here.\n"
+      }
+    }
+  ],
+  "skill_path": "/Users/nicolas/Documents/github/agent-plugins/company-deep-dive-plugin",
+  "timeout": 600
+}

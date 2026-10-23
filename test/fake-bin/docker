@@ -25,9 +25,55 @@ if (cmd === 'image' && args[1] === 'inspect') {
 }
 if (cmd === 'build') { log({ cmd: 'build', args }); process.stdout.write('built\n'); process.exit(0); }
 if (cmd === 'kill' || cmd === 'rm') { log({ cmd, args }); process.exit(0); }
+if (cmd === 'stats') {
+  // Streaming stats: one JSON line per second until killed. Config: stats: { samples, mem, cpu, intervalMs }
+  log({ cmd: 'stats', args });
+  const s = cfg.stats || {};
+  const n = s.samples ?? 3;
+  const interval = s.intervalMs ?? 1000;
+  let i = 0;
+  const tick = () => {
+    if (i++ >= n) return;
+    process.stdout.write(JSON.stringify({
+      Container: args[args.length - 1], ID: 'fake', CPUPerc: `${s.cpu ?? '12.50'}%`,
+      MemUsage: `${s.mem ?? '128.5MiB'} / 7.746GiB`, MemPerc: '1.63%', NetIO: '1kB / 2kB', BlockIO: '0B / 0B', PIDs: '4',
+    }) + '\n');
+    setTimeout(tick, interval);
+  };
+  tick();
+  process.on('SIGTERM', () => process.exit(143));
+  setInterval(() => {}, 1 << 30); // keep the event loop alive until killed; a pending promise does not
+  await new Promise(() => {}); // stream until killed, like real docker stats
+}
+if (cmd === 'inspect') {
+  // Config: inspect: { OOMKilled, Running, ExitCode } — the state the container died in.
+  log({ cmd: 'inspect', args });
+  const s = cfg.inspect ?? {};
+  process.stdout.write(JSON.stringify({ OOMKilled: s.OOMKilled ?? false, Running: s.Running ?? false, ExitCode: s.ExitCode ?? 0, Status: 'exited' }) + '\n');
+  process.exit(0);
+}
 if (cmd === 'run') {
   log({ cmd: 'run', args, cwd: process.cwd() });
   const r = cfg.run || {};
+  // failFirst: the first N run invocations behave as `fail` says (exit code / timeout) before
+  // succeeding — drives the harness retry loop. Counted in a state file under logDir.
+  if (r.failFirst) {
+    const stateFile = cfg.logDir ? path.join(cfg.logDir, 'run-count') : null;
+    let n = 0;
+    try { n = Number(fs.readFileSync(stateFile, 'utf8')) || 0; } catch { /* first run */ }
+    n++;
+    if (stateFile) fs.writeFileSync(stateFile, String(n));
+    if (n <= r.failFirst) {
+      if (r.fail?.timedOut) {
+        // a container that outlives the harness timeout: exit only when killed
+        process.on('SIGTERM', () => process.exit(143));
+        await sleep(r.fail.sleepMs ?? 30_000);
+        process.exit(0);
+      }
+      process.exit(r.fail?.exit ?? 1);
+    }
+  }
+
   const wi = args.indexOf('-v');
   // find the /work mount: "-v <host>:/work"
   const mounts = []; for (let i = 0; i < args.length; i++) if (args[i] === '-v') mounts.push(args[i + 1]);

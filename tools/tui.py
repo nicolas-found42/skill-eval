@@ -343,6 +343,19 @@ class Tui(App):
         for line in self.proc.stdout:
             self.lines.put(line)
 
+    def persist_errors(self) -> None:
+        """Errors live in memory for the banner; they also land in the run folder,
+        so a later `diagnose` sees the orchestration failure, not just the sessions."""
+        if not self.run_dir or not self.errors:
+            return
+        try:
+            p = self.run_dir / "tui-errors.json"
+            prev = json.loads(p.read_text()) if p.exists() else []
+            prev += [{"t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "error": e} for e in self.errors]
+            p.write_text(json.dumps(prev, indent=2))
+        except Exception:  # noqa: BLE001
+            pass
+
     def pump(self) -> None:
         while True:
             try:
@@ -368,8 +381,8 @@ class Tui(App):
                     self.stage = "run failed"
                 self.finished_at = self.finished_at or time.monotonic()
                 self._run_done = True
+            self.persist_errors()
             self.proc = None
-
     def poll_run(self) -> None:
         """Adopt the run folder as soon as it appears: `eval.mjs run` prints its
         path only after every container finished. Only a folder that this run
@@ -473,6 +486,13 @@ class Tui(App):
             line += style("dim", f"  {sessions} sessions · {len(findings)} findings")
             if high:
                 line += style("bad", f" · {len(high)} failing")
+            # A run whose record still says "running" is one the harness never finished.
+            if meta.get("status") == "running":
+                done = meta.get("sessions_done", sessions)
+                planned = meta.get("sessions_planned", "?")
+                line += style("warn", f" · interrupted at {done}/{planned}")
+            elif not (folder / "run.json").exists():
+                line += style("warn", " · interrupted")
             line += style("dim", f" · ${cost:.4f}")
             out.append(line)
         out.append("")
@@ -561,8 +581,10 @@ class Tui(App):
                 secs = (r.get("duration_ms") or 0) / 1000
                 code = r.get("exit_code")
                 if r.get("timeout"):
+                    kind = r.get("timeout_kind")
+                    timed = f"timed out ({kind})" if kind else "timed out"
                     out.append(head)
-                    out.append(f"     {style('bad', '✗')} {style('bad', 'timed out')} · {style('body', f'{secs:.0f}s')}")
+                    out.append(f"     {style('bad', '✗')} {style('bad', timed)} · {style('body', f'{secs:.0f}s')}")
                     continue
                 if code not in (0, None):
                     # the container failed: the judge would grade an empty
@@ -699,7 +721,8 @@ class Tui(App):
             line += style("dim", f"  {secs:.0f}s  ${cost:.4f}")
             code = r.get("exit_code")
             if r.get("timeout"):
-                line += style("bad", "  timed out")
+                tkind = r.get("timeout_kind")
+                line += style("bad", f"  timed out ({tkind})" if tkind else "  timed out")
             elif code not in (0, None):
                 line += style("bad", f"  container failed (exit {code})")
             else:
@@ -711,7 +734,26 @@ class Tui(App):
 
     def session_detail(self, session: Path) -> list[str]:
         out = [self.rule(), ""]
+        r = read_json(session / "result.json") or {}
+        gaps = []
+        if r.get("dropped_chars"):
+            gaps.append(f"{r['dropped_chars']} transcript chars cut mid-line (see transcript.partial.txt)")
+        if (session / "transcript.partial.txt").exists():
+            gaps.append("cut transcript tail saved in transcript.partial.txt")
+        if (session / "events.full.json").exists():
+            gaps.append("uncapped timeline in events.full.json")
+        if r.get("timeout_kind") == "hung":
+            gaps.append("container went silent before the hard kill (see host.jsonl no_output)")
+        if r.get("oom_killed"):
+            gaps.append("container was OOM-killed (see host.jsonl container_end)")
+        if (r.get("stderr_bytes") or 0) > 0 and not r.get("timeout") and r.get("exit_code") == 0:
+            gaps.append(f"{r['stderr_bytes']} stderr bytes on a clean exit (see stderr.txt)")
         g = read_json(session / "grading.json")
+        if g and g.get("truncated"):
+            gaps.append(f"evidence over cap ({g.get('evidence_chars', '?')} chars): no step could auto-pass")
+        if gaps:
+            out.append(" " + style("warn", "gaps: ") + style("body", esc("; ".join(gaps))))
+            out.append("")
         if g:
             for st in g.get("steps", []):
                 v = st.get("verdict", "needs_human")
@@ -731,10 +773,6 @@ class Tui(App):
                 out.append("    " + style("body", esc(short(c, 96))))
             out.append("")
         answer = self.assistant_text(session)
-        if answer:
-            out.append(" " + style("dim", "final message:"))
-            out += [style("body", "  " + esc(line)) for line in wrap(answer, 100)]
-        return out
 
 
 def default_scenarios() -> Path | None:
