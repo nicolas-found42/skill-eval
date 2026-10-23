@@ -1,8 +1,45 @@
 {
   "default": "ollama-cloud",
   "models": {
-    "ollama-cloud": { "model": "ollama-cloud/deepseek-v4.1-flash", "env": "OLLAMA_CLOUD_API_KEY" },
-    "opencode-go": { "model": "opencode-go/deepseek-v4.1-flash", "env": "OPENCODE_API_KEY" },
-    "mistral": { "model": "mistral/devstral-latest", "env": "MISTRAL_API_KEY" }
+    "ollama-cloud": {
+      "model": "ollama-cloud/deepseek-v4.1-flash",
+      "env": "OLLAMA_CLOUD_API_KEY"
+    },
+    "opencode-go": {
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "env": "OPENCODE_API_KEY"
+    },
+    "opencode-go-beam": {
+      "model": "opencode-go/beam-free",
+      "env": "OPENCODE_API_KEY"
+    },
+    "mistral": {
+      "model": "mistral/devstral-latest",
+      "env": "MISTRAL_API_KEY"
+    },
+    "mistral-small": {
+      "model": "mistral/mistral-small-latest",
+      "env": "MISTRAL_API_KEY"
+    },
+    "mistral-8b": {
+      "model": "mistral/ministral-8b-latest",
+      "env": "MISTRAL_API_KEY"
+    },
+    "mistral-3b": {
+      "model": "mistral/ministral-3b-latest",
+      "env": "MISTRAL_API_KEY"
+    },
+    "mistral-large-3": {
+      "model": "mistral/mistral-large-3-2512",
+      "env": "MISTRAL_API_KEY"
+    },
+    "opencode-go-longcat": {
+      "model": "opencode-go/longcat-2.5-preview-free",
+      "env": "OPENCODE_API_KEY"
+    },
+    "opencode-go-minimax": {
+      "model": "opencode-go/minimax-m3.1-flash-free",
+      "env": "OPENCODE_API_KEY"
+    }
   }
 }

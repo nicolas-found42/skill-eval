@@ -1,0 +1,63 @@
+{
+  "recorded_at": "2026-10-21T07:49:56.879Z",
+  "machine": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu": "Apple M5 Pro",
+    "cpu_count": 18,
+    "total_mem_bytes": 51539607552,
+    "node": "v24.22.0"
+  },
+  "inputs": {
+    "run_dir": "evals/20261021-032151-presentation-builder-mistral-small-4aa2498",
+    "skill_dir": "evals/20261021-032151-presentation-builder-mistral-small-4aa2498/skill",
+    "session_dir": "evals/20261021-032151-presentation-builder-mistral-small-4aa2498/negative-unrelated-r1",
+    "transcript_bytes": 3321,
+    "transcript_records": 14,
+    "events": 1,
+    "workspace_files": 0,
+    "skill_text_chars": 40988
+  },
+  "reps": 1000,
+  "paths": [
+    {
+      "path": "readSkill (skill/plugin identity hash)",
+      "reps": 1000,
+      "latency_ms": {
+        "min": 0.5983749999999759,
+        "p50": 0.6405839999999898,
+        "p95": 0.729750000000081,
+        "p99": 0.7692920000000072,
+        "max": 0.8589580000000296,
+        "mean": 0.6493181349999998
+      },
+      "rss_delta_bytes": 6669008
+    },
+    {
+      "path": "normalizeSession (transcript -> events/result)",
+      "reps": 1000,
+      "latency_ms": {
+        "min": 0.1136660000000802,
+        "p50": 0.12820800000008603,
+        "p95": 0.14970799999991868,
+        "p99": 0.22574999999994816,
+        "max": 0.8682089999999789,
+        "mean": 0.13205142200000033
+      },
+      "rss_delta_bytes": 1523808
+    },
+    {
+      "path": "grade evidence (flatten + readWorkspace + buildEvidence)",
+      "reps": 1000,
+      "latency_ms": {
+        "min": 0.07154100000002472,
+        "p50": 0.07333299999993415,
+        "p95": 0.08962500000006912,
+        "p99": 0.1053749999999809,
+        "max": 0.12824999999998,
+        "mean": 0.07615432399999633
+      },
+      "rss_delta_bytes": 0
+    }
+  ]
+}

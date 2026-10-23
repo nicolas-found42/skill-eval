@@ -7,9 +7,11 @@ venv/
 __pycache__/
 *.py[cod]
 
-# Eval run outputs (scenarios.json and skill sources stay tracked)
+# Eval run outputs (scenarios.json and skill sources stay tracked; the history indexes stay tracked)
 evals/*
 !evals/.gitkeep
+!evals/.index.jsonl
+!.evals-index.jsonl
 *.lock.json
 
 # Demo run artifacts (scripts and configs stay tracked)

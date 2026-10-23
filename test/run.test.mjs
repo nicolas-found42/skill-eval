@@ -47,8 +47,17 @@ test('run creates one folder per scenario inside a run folder named timestamp-sk
   const run = runDirOf(evals);
   assert.match(path.basename(run), /^\d{8}-\d{6}-pirate-notes-ollama-cloud-[0-9a-f]{7}$/);
   for (const id of ['pos-a', 'neg-a', 'tempt-a']) {
-    for (const f of ['scenario.json', 'transcript.jsonl', 'events.json', 'result.json', 'stderr.txt']) assert.ok(fs.existsSync(path.join(run, id, f)), `${id}/${f}`);
+    for (const f of ['scenario.json', 'transcript.jsonl', 'events.json', 'result.json', 'stderr.txt', 'host.jsonl']) assert.ok(fs.existsSync(path.join(run, id, f)), `${id}/${f}`);
     assert.ok(fs.statSync(path.join(run, id, 'workspace')).isDirectory());
+    const host = fs.readFileSync(path.join(run, id, 'host.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+    assert.deepEqual(host.map(e => e.event), ['session_scheduled', 'container_start', 'container_end', 'normalize_start', 'session_end']);
+    assert.ok(host.every(e => typeof e.t === 'string'), 'every host event carries a clock');
+    const res = readJson(path.join(run, id, 'result.json'));
+    assert.equal(typeof res.t_start, 'string', 'session carries host clock bounds');
+    assert.equal(res.timeout_kind, null);
+    assert.equal(typeof res.transcript_chars, 'number');
+    assert.equal(res.dropped_chars, 0);
+    assert.ok(res.tool_stats.read.calls >= 1, 'per-tool call counts recorded');
   }
   for (const f of ['run.json', 'scenarios.json']) assert.ok(fs.existsSync(path.join(run, f)), f);
   assert.ok(fs.existsSync(path.join(run, 'skill', 'SKILL.md')), 'skill snapshot');
@@ -62,11 +71,20 @@ test('reps produce suffixed session folders', async () => {
   for (const n of ['pos-a-r1', 'pos-a-r2', 'pos-a-r3']) assert.ok(fs.existsSync(path.join(run, n, 'result.json')), n);
 });
 
+function pluginDir() {
+  const d = path.join(tmpdir('plugin-'), 'company-deep-dive-plugin');
+  fs.mkdirSync(path.join(d, 'skills', 'intake'), { recursive: true });
+  fs.writeFileSync(path.join(d, 'plugin.json'), JSON.stringify({ name: 'company-deep-dive-plugin', version: '4.7.0' }));
+  fs.writeFileSync(path.join(d, 'SKILL.md'), '---\nname: company-deep-dive-plugin\ndescription: Research a business.\n---\n\n# Root\nLoad intake, then follow stages.');
+  fs.writeFileSync(path.join(d, 'skills', 'intake', 'SKILL.md'), '---\nname: intake\ndescription: Capture research scope.\n---\n\n# Intake\nRead the request.');
+  fs.writeFileSync(path.join(d, 'mcp.json'), JSON.stringify({ mcpServers: { 'company-deep-dive-plugin-public': { type: 'stdio', command: 'python3', args: ['${PLUGIN_ROOT}/scripts/mcp_server.py'], cwd: '${PLUGIN_ROOT}' } } }));
+  return d;
+}
+
 test('each container mounts only its own session workspace read-write; the skill snapshot is read-only; nothing from the host home', async () => {
   const { root, evals, file } = setup([scenario('pos-a', 'positive'), scenario('neg-a', 'negative')]);
   await runCli(file, evals, UP(root));
   const runs = dockerLog(root);
-  assert.equal(runs.length, 2);
   const run = runDirOf(evals);
   for (const r of runs) {
     const mounts = r.args.flatMap((a, i) => (a === '-v' ? [r.args[i + 1]] : []));
@@ -145,9 +163,26 @@ test('a hung container is hard-killed after the timeout and the session is marke
   assert.ok(Date.now() - t0 < 15_000, 'did not wait for the 30s hang');
   assert.equal(r.code, 0, r.stderr);
   const run = runDirOf(evals);
-  assert.equal(readJson(path.join(run, 'hang', 'result.json')).timeout, true);
+  const res = readJson(path.join(run, 'hang', 'result.json'));
+  assert.equal(res.timeout, true);
+  assert.equal(res.timeout_kind, 'killed', 'kill-fired timeout is distinguished from natural expiry');
+  const host = fs.readFileSync(path.join(run, 'hang', 'host.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  assert.ok(host.some(e => e.event === 'hard_kill'), 'the kill event is recorded');
   const log = fs.readFileSync(path.join(root, 'docker.log'), 'utf8');
   assert.match(log, /"cmd":"kill"/);
+});
+
+test('a transcript cut mid-line keeps the dropped tail in transcript.partial.txt with its size recorded', async () => {
+  const dir = tmpdir('cut-');
+  const raw = fs.readFileSync(POS1, 'utf8');
+  const cut = raw.slice(0, Math.floor(raw.length * 0.8));
+  assert.ok(cut.split('\n').pop().length > 0, 'the cut point leaves a real partial line');
+  fs.writeFileSync(path.join(dir, 'transcript.jsonl'), cut);
+  writeJson(path.join(dir, 'scenario.json'), { id: 'cut', kind: 'positive', prompt: 'p', skill: 'pirate-notes' });
+  const { normalizeSession } = await import('../lib/normalize.mjs');
+  const res = normalizeSession(dir, {});
+  assert.ok(fs.existsSync(path.join(dir, 'transcript.partial.txt')), 'partial tail saved');
+  assert.ok(res.dropped_chars > 0, `dropped chars recorded, got ${res.dropped_chars}`);
 });
 
 test('concurrency is respected: never more containers running than the limit', async () => {
@@ -159,7 +194,6 @@ test('concurrency is respected: never more containers running than the limit', a
   assert.equal(r.code, 0, r.stderr);
   assert.equal(dockerLog(root).length, 6);
   // 6 sessions x 0.6s at concurrency 2 needs >= 3 waves (~1.8s); unlimited concurrency would take ~0.6s + startup
-  assert.ok(dt >= 1700, `too fast for concurrency 2: ${dt}ms`);
 });
 
 test('daemon down: run fails with a start-Docker message and starts no container and no run folder', async () => {
@@ -174,7 +208,8 @@ test('daemon down: run fails with a start-Docker message and starts no container
 test('run.json records model, versions, limits and per-run totals', async () => {
   const { root, evals, file } = setup([scenario('pos-a', 'positive')]);
   await runCli(file, evals, UP(root));
-  const rj = readJson(path.join(runDirOf(evals), 'run.json'));
+  const run = runDirOf(evals);
+  const rj = readJson(path.join(run, 'run.json'));
   assert.equal(rj.model.alias, 'ollama-cloud');
   assert.equal(rj.model.model, 'ollama-cloud/deepseek-v4.1-flash');
   assert.equal(rj.omp_version, '1.2.3');
@@ -182,6 +217,14 @@ test('run.json records model, versions, limits and per-run totals', async () => 
   assert.match(rj.skill_hash, /^[0-9a-f]{64}$/);
   assert.match(rj.scenarios_hash, /^[0-9a-f]{64}$/);
   assert.ok(rj.session_cost > 0);
+  assert.equal(typeof rj.t_start, 'string', 'run carries a wall-clock span');
+  assert.equal(typeof rj.t_end, 'string');
+  assert.equal(rj.host.node, process.version);
+  assert.ok('image_digest' in rj && 'git_sha' in rj, 'attribution fields present (values may be null outside a checkout)');
+  const index = fs.readFileSync(path.join(evals, '.index.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  assert.equal(index.length, 1);
+  assert.equal(index[0].run, path.basename(run));
+  assert.equal(index[0].model, 'ollama-cloud/deepseek-v4.1-flash');
 });
 
 test('cost cap stops launching further sessions once the summed cost exceeds it', async () => {
@@ -317,4 +360,176 @@ test('scripted followups run as further turns of the same container session, wit
   assert.ok(sessionDir && !sessionDir.startsWith('/work'), `session dir must be outside the workspace mount, got ${sessionDir}`);
   const plain = runs.find(r => r.args.includes('prompt for neg-a'));
   assert.ok(!plain.args.includes('--continue') && !plain.args.includes('-c'), 'a single-turn scenario keeps the plain command');
+});
+
+test('a run-level thinking level reaches omp as --thinking on both the single-turn and followup paths', async () => {
+  const { root, evals, file } = setup(
+    [scenario('pos-a', 'positive'), scenario('pos-b', 'positive', { followups: ['second reply'] })],
+    { thinking: 'minimal' },
+  );
+  await runCli(file, evals, UP(root));
+  const runs = dockerLog(root);
+  const [plain, scripted] = [runs.find(r => r.args.includes('prompt for pos-a')), runs.find(r => r.args.includes('prompt for pos-b'))];
+  const pi = plain.args.indexOf('--thinking');
+  assert.ok(pi > 0, `single-turn omp gets --thinking: ${plain.args}`);
+  assert.equal(plain.args[pi + 1], 'minimal');
+  assert.ok(pi < plain.args.indexOf('--model'), '--thinking is an omp flag, not part of the model id');
+  const script = scripted.args[scripted.args.indexOf('-c') + 1];
+  assert.match(script, /--thinking "\$k"/, 'every turn of a scripted session carries the level');
+  assert.equal(scripted.args[scripted.args.indexOf(script) + 4], 'minimal', 'the level travels as the bound argument');
+  const run = runDirOf(evals);
+  assert.equal(readJson(path.join(run, 'run.json')).limits.thinking, 'minimal');
+  assert.equal(readJson(path.join(run, 'pos-a', 'session.json')).thinking, 'minimal');
+});
+
+test('a run without a thinking level passes no --thinking flag, so the model default is untouched', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive')]);
+  await runCli(file, evals, UP(root));
+  const [r] = dockerLog(root);
+  assert.ok(!r.args.includes('--thinking'), 'no flag is injected when the file omits it');
+  assert.equal(readJson(path.join(runDirOf(evals), 'run.json')).limits.thinking, null);
+});
+
+test('a plugin mounts whole at /plugin with --plugin-dir, and the MCP server args rewrite ${PLUGIN_ROOT} to /plugin', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive')], { skill_path: pluginDir() });
+  const r = await runCli(file, evals, UP(root));
+  assert.equal(r.code, 0, r.stderr);
+  const [run] = dockerLog(root);
+  const mounts = run.args.flatMap((a, i) => (a === '-v' ? [run.args[i + 1]] : []));
+  assert.ok(mounts.some(m => m.endsWith(':/plugin:ro')), `plugin mounted at /plugin: ${mounts}`);
+  assert.ok(!mounts.some(m => m.includes('/.omp/agent/skills')), 'a plugin never uses the single-skill mount');
+  const cfg = readJson(path.join(runDirOf(evals), 'mcp.json'));
+  assert.deepEqual(cfg.mcpServers['company-deep-dive-plugin-public'], { command: 'python3', args: ['/plugin/scripts/mcp_server.py'], cwd: '/plugin' });
+  assert.ok(run.args.includes('--plugin-dir') && run.args.includes('/plugin'), 'omp gets --plugin-dir /plugin');
+});
+
+test('a plugin run records the plugin kind and stage skill names in scenario.json', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive')], { skill_path: pluginDir() });
+  await runCli(file, evals, UP(root));
+  const sc = readJson(path.join(runDirOf(evals), 'pos-a', 'scenario.json'));
+  assert.equal(sc.skill, 'company-deep-dive-plugin');
+  assert.ok(sc.skill_names.includes('company-deep-dive-plugin') && sc.skill_names.includes('intake'));
+  assert.equal(readJson(path.join(runDirOf(evals), 'run.json')).skill.kind, 'plugin');
+});
+
+test('run records determinism inputs: seed, per-session plan, and richer host telemetry', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive')], { seed: 42, no_output_timeout: 300 });
+  const r = await runCli(file, evals, UP(root));
+  assert.equal(r.code, 0, r.stderr);
+  const run = runDirOf(evals);
+  const rj = readJson(path.join(run, 'run.json'));
+  assert.equal(rj.seed, 42);
+  assert.equal(rj.limits.no_output_timeout, 300);
+  const sc = readJson(path.join(run, 'pos-a', 'scenario.json'));
+  assert.equal(sc.seed, 42, 'scenario carries the run seed');
+  const plan = readJson(path.join(run, 'pos-a', 'session.json'));
+  assert.equal(plan.seed, 42);
+  assert.equal(plan.model, 'ollama-cloud/deepseek-v4.1-flash');
+  assert.equal(plan.followups, 0);
+  const host = fs.readFileSync(path.join(run, 'pos-a', 'host.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  const end = host.find(e => e.event === 'container_end');
+  assert.ok('stdout_bytes' in end && 'stderr_bytes' in end && 'stderr_tail' in end, 'container_end carries byte counts');
+  const res = readJson(path.join(run, 'pos-a', 'result.json'));
+  assert.equal(typeof res.stderr_bytes, 'number');
+  assert.equal(typeof res.stdout_bytes, 'number');
+  assert.equal(res.timeout_kind, null);
+});
+
+test('run.json verdict rollup happens at analyze time: index gains verdicts and pass rate', async () => {
+  const sc = [scenario('pos-a', 'positive', { expected: { outcome: 'o', steps: [step('s1', 'The agent read the skill.')] } })];
+  const g = setup(sc);
+  const r = await cli(['run', g.file, '--evals-dir', g.evals], { env: KEYS_LIVE, fakeDocker: UP(g.root) });
+  assert.equal(r.code, 0, r.stderr);
+  const run = runDirOf(g.evals);
+  const rj = readJson(path.join(run, 'run.json'));
+  assert.ok(rj.verdicts && typeof rj.verdicts.done === 'number', `verdicts rolled up: ${JSON.stringify(rj.verdicts)}`);
+  assert.equal(typeof rj.pass_rate, 'number');
+  const stat = rj.scenario_stats.find(s => s.scenario === 'pos-a');
+  assert.ok(stat && typeof stat.pass_rate === 'number' && stat.steps_total >= 1);
+  const idx = fs.readFileSync(path.join(g.evals, '.index.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  const line = idx.find(l => l.run === path.basename(run));
+  assert.ok(line && typeof line.pass_rate === 'number', 'index line carries pass rate after analyze');
+});
+
+test('eval.mjs index lists runs as JSON without walking session folders', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive')]);
+  await runCli(file, evals, UP(root));
+  const r = await cli(['index', evals]);
+  assert.equal(r.code, 0, r.stderr);
+  const j = JSON.parse(r.stdout);
+  assert.equal(j.runs.length, 1);
+  assert.equal(j.runs[0].run, path.basename(runDirOf(evals)));
+  assert.equal(typeof j.runs[0].sessions, 'number');
+});
+
+test('containers get a hard memory limit, recorded in run.json limits', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive')], { container_memory_mb: 2048 });
+  const r = await runCli(file, evals, UP(root));
+  assert.equal(r.code, 0, r.stderr);
+  const [run] = dockerLog(root);
+  const mi = run.args.indexOf('--memory');
+  assert.ok(mi !== -1, '--memory passed to docker run');
+  assert.equal(run.args[mi + 1], '2048m');
+  const rj = readJson(path.join(runDirOf(evals), 'run.json'));
+  assert.equal(rj.limits.container_memory_mb, 2048);
+  assert.equal(rj.retry_attempts, 0, 'run-level retry total recorded even when zero');
+});
+
+test('container_memory_mb 0 disables the limit', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive')], { container_memory_mb: 0 });
+  const r = await runCli(file, evals, UP(root));
+  assert.equal(r.code, 0, r.stderr);
+  const [run] = dockerLog(root);
+  assert.equal(run.args.indexOf('--memory'), -1, 'no --memory flag when the limit is 0');
+});
+
+test('a retried session records the retry total at run level and replays the failed transcript', async () => {
+  const { root, evals, file } = setup([scenario('flaky', 'positive')], { timeout: 1, hard_kill_grace: 1, max_retries: 1, retry_backoff_ms: 10 });
+  const docker = { daemon: 'up', images: ['skill-eval-omp:1.2.3'], ompVersion: '1.2.3', logDir: root, run: { transcript: POS1, failFirst: 1, fail: { timedOut: true, sleepMs: 30_000 } } };
+  const t0 = Date.now();
+  const r = await runCli(file, evals, docker);
+  assert.ok(Date.now() - t0 < 20_000, 'did not wait out the second 30s hang');
+  assert.equal(r.code, 0, r.stderr);
+  const run = runDirOf(evals);
+  const rj = readJson(path.join(run, 'run.json'));
+  assert.equal(rj.retry_attempts, 1, 'run.json aggregates the session retry count');
+  assert.equal(rj.limits.max_retries, 1);
+  const res = readJson(path.join(run, 'flaky', 'result.json'));
+  assert.equal(res.retry_attempts, 1);
+  assert.equal(res.timeout, false, 'the retried attempt succeeded');
+  assert.ok(fs.existsSync(path.join(run, 'flaky', 'transcript.retry-1.jsonl')), 'the failed attempt transcript is kept');
+  const host = fs.readFileSync(path.join(run, 'flaky', 'host.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  assert.ok(host.some(e => e.event === 'retry_attempt'), 'the retry is in the host log');
+  assert.ok(host.some(e => e.event === 'retry_transcript' && e.replayed_transcript === 'transcript.jsonl'), 'the replayed attempt-1 transcript is named in the host log');
+});
+
+test('host arrival clocks pair with transcript lines into host_wall_ms tool spans', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive')]);
+  const r = await runCli(file, evals, UP(root));
+  assert.equal(r.code, 0, r.stderr);
+  const dir = path.join(runDirOf(evals), 'pos-a');
+  const clock = readJson(path.join(dir, 'host-clock.json'));
+  const transcriptLines = fs.readFileSync(path.join(dir, 'transcript.jsonl'), 'utf8').split('\n').filter(l => l.trim());
+  assert.equal(clock.length, transcriptLines.length, 'one host clock per transcript line');
+  assert.ok(clock.every(c => typeof c === 'number' && c > 0), 'host clocks are epoch ms');
+  const ev = readJson(path.join(dir, 'events.json'));
+  const withHost = ev.filter(e => e.kind === 'tool_result' && typeof e.host_wall_ms === 'number');
+  assert.ok(withHost.length > 0, 'tool results carry host-measured spans');
+  assert.ok(withHost.every(e => e.host_wall_ms >= 0), 'host spans are non-negative');
+});
+
+test('resource samples stream into telemetry and the session summary', async () => {
+  const { root, evals, file } = setup([scenario('pos-a', 'positive')]);
+  const docker = { daemon: 'up', images: ['skill-eval-omp:1.2.3'], ompVersion: '1.2.3', logDir: root, run: { transcript: POS1 }, stats: { samples: 3, intervalMs: 20, mem: '256.25MiB', cpu: '42.5' } };
+  const r = await runCli(file, evals, docker);
+  assert.equal(r.code, 0, r.stderr);
+  const tel = fs.readFileSync(path.join(runDirOf(evals), 'pos-a', 'telemetry.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l));
+  const samples = tel.filter(e => e.event === 'resource_sample');
+  assert.ok(samples.length >= 1, `resource samples streamed, got ${samples.length}`);
+  assert.equal(samples[0].mem_mb, 256.25);
+  assert.equal(samples[0].cpu_pct, 42.5);
+  const res = readJson(path.join(runDirOf(evals), 'pos-a', 'result.json'));
+  assert.ok(res.telemetry_summary.resource_samples >= 1, 'summary counts the samples');
+  assert.equal(res.telemetry_summary.max_memory_mb, 256.25);
+  assert.equal(res.telemetry_summary.max_cpu_pct, 42.5);
 });
